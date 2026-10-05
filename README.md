@@ -11,10 +11,10 @@ guides a driving policy. The alphabet describes the world; the automaton and the
 decide what to do. This repository covers the first part: choosing the labels and
 checking, frame by frame, that they change when a human driver's reasoning would change.
 
-**Status (2026-10-04): Checkpoint 3.** Four junction scenarios, 26 recorded runs, 19
-labels, and a frame-by-frame inspector work end to end. The label sequences agree with the
-hand-written expectations in 23 of 26 runs. The label set and its thresholds are under
-review. No policy is trained.
+**Status (2026-10-05).** Four junction scenarios, 26 recorded runs, 19 labels, a first set
+of rule automata, and a frame-by-frame inspector work end to end. The label sequences
+agree with the hand-written expectations in 23 of 26 runs, and one general set of eight
+small automata gives the expected verdict on all 26. No policy is trained.
 
 To look at results without installing anything, open
 [docs/inspector.html](docs/inspector.html) in a browser (a snapshot of all 26 runs).
@@ -27,11 +27,12 @@ To look at results without installing anything, open
 4. [Running the pipeline](#4-running-the-pipeline)
 5. [Looking at the results](#5-looking-at-the-results)
 6. [The labels](#6-the-labels)
-7. [Scenarios and drivers](#7-scenarios-and-drivers)
-8. [Changing things](#8-changing-things)
-9. [Project structure](#9-project-structure)
-10. [Known limits](#10-known-limits)
-11. [Further reading](#11-further-reading)
+7. [The rule automata](#7-the-rule-automata)
+8. [Scenarios and drivers](#8-scenarios-and-drivers)
+9. [Changing things](#9-changing-things)
+10. [Project structure](#10-project-structure)
+11. [Known limits](#11-known-limits)
+12. [Further reading](#12-further-reading)
 
 ## 1. How it works
 
@@ -46,14 +47,18 @@ To look at results without installing anything, open
           |       and the result is compared with the expected
           |       label sequence written by hand for that run
           v
- 3. INSPECT       one web page to step through any run            -> outputs/inspector.html
+ 3. VERIFY        small rule automata read each label sequence    -> a verdict per run
+          |       and say whether the run succeeded and which
+          |       rules it broke
+          v
+ 4. INSPECT       one web page to step through any run            -> outputs/inspector.html
 ```
 
 Three ideas hold it together:
 
 - **Simulate once, label many times.** Step 1 really runs the simulator: the cars are
   driven live by SUMO's driver model or by a script, and every frame is recorded. Steps 2
-  and 3 only read those recordings. Changing a label or a threshold therefore takes
+  to 4 only read those recordings. Changing a label or a threshold therefore takes
   seconds, not a new simulation. The scenarios are staged (fixed routes, fixed departure
   times, no randomness), so a re-simulation reproduces the same run.
 - **A label is a fact about one frame.** Each labeling function looks at a single snapshot
@@ -191,7 +196,24 @@ Useful variations:
     .venv\Scripts\python -m semalpha.label --stats                         # per label: share of time true, changes, flickers
     .venv\Scripts\python -m semalpha.label --set gap_margin_s=3            # try a threshold without editing any file
 
-### Step 3: build the inspector (a few seconds)
+### Step 3: judge the runs with the rule automata (a few seconds)
+
+    .venv\Scripts\python -m semalpha.verify
+
+Feeds every label sequence to the automata in `semalpha/rules.py` and prints a verdict per
+run, compared with the verdict written down beforehand:
+
+    ok   t_stop_left     clear                 roll_through         completed | rules broken: stop_at_stop_sign at 9.7s | halted: nowhere | idle while free: 0.0s
+    ...
+    26 of 26 verdicts as expected
+
+`ok` means the verdict is the expected one; `DIFF` prints what was expected instead.
+
+    .venv\Scripts\python -m semalpha.verify t_stop_left wait_for_gap   # also show every automaton's state changes
+    .venv\Scripts\python -m semalpha.verify --set gap_margin_s=1       # judge with a different label threshold
+    .venv\Scripts\python -m semalpha.verify --docs                     # regenerate docs/automata.md
+
+### Step 4: build the inspector (a few seconds)
 
     .venv\Scripts\python -m semalpha.inspector
 
@@ -228,8 +250,17 @@ Writes `docs/figures/scenarios.png` (the maps and routes) and `docs/figures/trac
   gap is sufficient. This is the reasoning behind `conflict_present`, `ego_has_priority`
   and `gap_safe` at that moment.
 - **Expected sequence**: the phases written for this run and when each was reached.
+- **Automata: live state diagram**: a row of buttons, one per automaton, each showing the
+  state that automaton is in at this moment (a broken rule in red). Click one to draw it as
+  a graph that updates as you step through the run:
+  - the current state is filled in; states already visited have a bold outline;
+  - the transition just taken is blue, earlier ones are bold, ones never taken are faint;
+  - on the ways out of the current state, each condition is bold if it holds right now;
+  - beside the graph: the rule in words, the path so far (click a step to jump to that
+    moment), and for each way out which conditions are met and which are missing.
 - **Timeline at the bottom**: one row per label, a bar wherever it is on. Numbered lines
-  mark the expected phases; shaded bands are unexplained stretches. Click or drag to jump.
+  mark the expected phases; shaded bands are unexplained stretches. Below the labels, one
+  band per automaton shows its state over time. Click or drag to jump.
 
 ### A label sequence as text
 
@@ -304,7 +335,37 @@ each gap; layer 1 supplies the distances and travel times.
 Definitions, evidence from the runs, and open questions are in
 [docs/vocabulary.md](docs/vocabulary.md).
 
-## 7. Scenarios and drivers
+## 7. The rule automata
+
+An automaton here is a small state machine that reads the labels one frame at a time. It
+is in exactly one state, and each frame it either stays or moves, depending on which
+labels are on. Unlike a label, it remembers: that is where "I already stopped at the line"
+or "I was outside when the light turned red" is kept.
+
+There is **one rule set for every scenario** (`semalpha/rules.py`), made of eight small
+automata. None of them mentions a junction type.
+
+| Automaton | Kind | What it tracks |
+|---|---|---|
+| `reach_goal` | task | progress: approach, at_line, inside, cleared, done. Ending in `done` is success. |
+| `stop_at_stop_sign` | rule | where a stop sign applies, halt at the line before entering |
+| `obey_red_signal` | rule | do not enter on red; being inside when it turns red is allowed |
+| `stop_on_yellow_when_able` | rule | do not enter on a yellow that left room to stop |
+| `respect_right_of_way` | rule | do not pass the point of no return while a car that outranks the ego is too close |
+| `no_collision` | rule | never touch another car |
+| `stay_on_road` | rule | never leave the road |
+| `where_it_waited` | branch | where the ego came to a halt: nowhere, at the line, inside, both |
+
+A rule automaton that reaches `violated` stays there, and the time it got there is
+reported. The verdict of a run is: did `reach_goal` end in `done`, which rules were broken
+and when, and where the ego waited. One extra number, "idle while free", measures how long
+the ego stood still although nothing held it; it separates a hesitant run from a normal
+one.
+
+State diagrams, the full verdict table, and what the result does and does not show are in
+[docs/automata.md](docs/automata.md).
+
+## 8. Scenarios and drivers
 
 ![maps and routes](docs/figures/scenarios.png)
 
@@ -329,9 +390,9 @@ and departure time. Every variant is driven by:
 The step-by-step description of what a human driver notices in each variant is in
 [docs/traces.md](docs/traces.md).
 
-## 8. Changing things
+## 9. Changing things
 
-After any change below, run pipeline step 2 and step 3 again. Step 1 is needed only where
+After any change below, run pipeline steps 2 to 4 again. Step 1 is needed only where
 noted.
 
 ### Change a threshold
@@ -356,6 +417,29 @@ in every trace, in the statistics and in the inspector. To remove a label, delet
 function; if an expectation in `expected.py` mentions it, remove it there too. The
 inspector supports at most 31 labels.
 
+### Add or change a rule automaton
+
+Edit `semalpha/rules.py`. An automaton is a name, an initial state, and for each state an
+ordered list of `(condition, next state)`; the first condition that holds is taken, and
+with none the automaton stays. A condition lists labels that must be on (`name`) or off
+(`!name`):
+
+```python
+dont_block_the_exit = Automaton(
+    name="dont_block_the_exit",
+    rule="Do not enter the junction unless there is room to leave it.",
+    initial="outside",
+    transitions={
+        "outside": (("in_junction !exit_clear", "violated"), ("in_junction", "inside")),
+        "inside": (("!in_junction", "outside"),),
+    },
+    bad=("violated",),
+)
+```
+
+Add it to the `AUTOMATA` list. If it changes what a run should be judged as, update
+`EXPECTED_VERDICT` in `semalpha/expected.py`.
+
 ### Add a scenario variant (needs step 1 for the new runs)
 
 1. Add a `Variant` to a scenario in `semalpha/scenarios.py`:
@@ -373,8 +457,9 @@ inspector supports at most 31 labels.
    A `Car` is given by its route (edge names, first to last) and departure time. A
    `Script` is a cruising speed plus optional `Hold`s: stop at the entry line or the
    in-junction waiting point until a given time.
-2. Add one entry per driver to `EXPECTED` in `semalpha/expected.py`, keyed by
-   `(scenario, variant, driver)`. Write it before looking at the labels.
+2. Add one entry per driver to both `EXPECTED` (the label sequence) and
+   `EXPECTED_VERDICT` (the automata's verdict) in `semalpha/expected.py`, keyed by
+   `(scenario, variant, driver)`. Write them before looking at the results.
 3. Simulate it: `.venv\Scripts\python -m semalpha.run <scenario> late_car`, and check the
    printed raw facts to see that the staging does what you intended.
 
@@ -387,7 +472,7 @@ gives way to whom, with:
 
     .venv\Scripts\python -m semalpha.mapinfo <name>
 
-## 9. Project structure
+## 10. Project structure
 
 ```
 semalpha/                  the Python package (short for "semantic alphabet")
@@ -402,14 +487,18 @@ semalpha/                  the Python package (short for "semantic alphabet")
   relations.py             layer 2: relational facts for one frame
   predicates.py            layer 3: the 19 labels
   thresholds.yaml          every tunable number
-  expected.py              the expected label sequence of every run
+  expected.py              the expected label sequence and expected verdict of every run
   label.py                 step 2: label, compare, statistics
-  inspector.py             step 3: builds the inspector page
+  automata.py              what an automaton is and how it reads labels
+  rules.py                 the rule set: eight small automata
+  verify.py                step 3: run the automata, compare verdicts
+  inspector.py             step 4: builds the inspector page
   inspector.html           the inspector's page template
   plot.py                  figures
 docs/
   traces.md                what a human driver notices in each scenario
   vocabulary.md            the labels: definitions, evidence, open points
+  automata.md              the rule automata: diagrams, verdicts, limits (generated)
   design_log.md            decisions and the reasons for them
   inspector.html           snapshot of the inspector for all 26 runs
   figures/                 scenarios.png, traces.png
@@ -431,12 +520,15 @@ outputs/traces/            label sequences
 outputs/inspector.html     the inspector page
 ```
 
-## 10. Known limits
+## 11. Known limits
 
 - **Perfect perception.** The labels see every car's exact position and speed, with no
   noise, no blind spots and no range limit. They do not see where a car is going.
-- **Not validated by a policy.** The labels have been checked against hand-written
-  expectations on 26 staged runs. No automaton or learned policy has used them yet.
+- **Not validated by a policy.** The labels and automata have been checked against
+  hand-written expectations on 26 staged runs. Nothing drives with them yet: the automata
+  only judge recordings.
+- **Two rules are half-tested.** No run breaks `stop_on_yellow_when_able` or
+  `stay_on_road`, so only their "no false alarm" side has been checked.
 - **Three labels are untested.** `others_can_yield`, `exit_clear` and `off_road` never
   change value in any run so far.
 - **One lane per direction.** Lane changes, queues and a car ahead in the ego's lane are
@@ -450,10 +542,12 @@ outputs/inspector.html     the inspector page
 - **Private SMARTS and SUMO internals** are read in a few places (`mapinfo.py`,
   `run.py`), so a different SMARTS version may need adjustments.
 
-## 11. Further reading
+## 12. Further reading
 
 - [docs/traces.md](docs/traces.md): the human reasoning each scenario is meant to capture.
 - [docs/vocabulary.md](docs/vocabulary.md): label definitions, statistics, threshold
   sensitivity, concepts left out and why, open points.
+- [docs/automata.md](docs/automata.md): state diagrams of the rule automata and their
+  verdict on every run.
 - [docs/design_log.md](docs/design_log.md): what was decided, what went wrong on the first
   comparison, and what was changed.

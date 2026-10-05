@@ -40,6 +40,54 @@
   button:hover { border-color: var(--axis); }
   #verdict { font-weight: 600; }
   #story { flex-basis: 100%; color: var(--ink2); }
+  #ruling { flex-basis: 100%; }
+  #ruling b { font-weight: 600; }
+  /* live state diagram of one automaton */
+  #dfaWrap { margin: 12px 16px 0; }
+  #dfaTabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  #dfaTabs button { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 0; padding: 3px 9px;
+                    background: var(--surface); line-height: 1.25; }
+  #dfaTabs button span { font-size: 11px; color: var(--ink2); }
+  #dfaTabs button.sel { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+  #dfaTabs button.bad span { color: var(--critical); font-weight: 700; }
+  #dfaTabs button.good span { color: var(--good); font-weight: 700; }
+  #dfaBody { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(240px, 1fr); gap: 12px; align-items: start; }
+  @media (max-width: 860px) { #dfaBody { grid-template-columns: 1fr; } }
+  #dfa { width: 100%; display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+  #dfa .edge { fill: none; stroke: var(--axis); stroke-width: 1.2; }
+  #dfa .edge.open { stroke: var(--ink2); stroke-width: 1.4; }
+  #dfa .edge.taken { stroke: var(--ink); stroke-width: 2; }
+  #dfa .edge.last { stroke: var(--s1); stroke-width: 3; }
+  #dfa .ah.none { fill: var(--axis); } #dfa .ah.open { fill: var(--ink2); }
+  #dfa .ah.taken { fill: var(--ink); } #dfa .ah.last { fill: var(--s1); }
+  #dfa .elabel { font-size: 10.5px; fill: var(--muted); paint-order: stroke; stroke: var(--surface); stroke-width: 3.5px; stroke-linejoin: round; }
+  #dfa .elabel.taken, #dfa .elabel.last { fill: var(--ink2); }
+  #dfa .elabel .yes { fill: var(--ink); font-weight: 700; }
+  #dfa .elabel .no { fill: var(--muted); }
+  #dfa .node { fill: var(--surface); stroke: var(--axis); stroke-width: 1.2; }
+  #dfa .node.bad { stroke: var(--critical); stroke-dasharray: 4 3; }
+  #dfa .node.good { stroke: var(--good); }
+  #dfa .node.seen { stroke: var(--ink); stroke-width: 1.8; stroke-dasharray: none; }
+  #dfa .node.cur { fill: var(--ink); stroke: var(--ink); stroke-dasharray: none; }
+  #dfa .node.cur.bad { fill: var(--critical); stroke: var(--critical); }
+  #dfa .node.cur.good { fill: var(--good); stroke: var(--good); }
+  #dfa .nlabel { font-size: 12px; fill: var(--ink2); }
+  #dfa .nlabel.seen { fill: var(--ink); }
+  #dfa .nlabel.cur { fill: var(--surface); font-weight: 700; }
+  #dfa .nlabel.cur.bad, #dfa .nlabel.cur.good { fill: #ffffff; }
+  #dfa .init { fill: var(--ink2); }
+  #dfaInfo h3 { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 8px 0 3px; font-weight: 600; }
+  #dfaInfo h3:first-child { margin-top: 0; }
+  #dfaInfo ul { margin: 0; padding-left: 16px; }
+  #dfaInfo .yes { color: var(--ink); font-weight: 600; }
+  #dfaInfo .no { color: var(--muted); }
+  #dfaInfo .muted { color: var(--muted); list-style: none; margin-left: -16px; }
+  #dfaPath a { cursor: pointer; white-space: nowrap; }
+  #dfaPath a:hover { text-decoration: underline; }
+  #dfaPath small { color: var(--muted); }
+  #dfaKey { display: flex; flex-wrap: wrap; gap: 3px 14px; margin-top: 6px; color: var(--ink2); font-size: 12px; }
+  #dfaKey span { display: inline-flex; align-items: center; gap: 5px; }
+  #dfaKey i { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--ink); }
   main { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, 1fr); gap: 12px; padding: 0 16px; }
   @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
   #mapWrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
@@ -80,6 +128,7 @@
   <select id="runSel" aria-label="Run"></select>
   <span id="verdict"></span>
   <div id="story"></div>
+  <div id="ruling"></div>
 </header>
 <main>
   <div id="mapWrap">
@@ -101,6 +150,22 @@
     <div class="card"><h2>Expected sequence</h2><ol id="phases"></ol><ul id="notes"></ul></div>
   </aside>
 </main>
+<section id="dfaWrap" class="card">
+  <h2>Automata: live state diagram (pick one)</h2>
+  <div id="dfaTabs"></div>
+  <div id="dfaBody">
+    <div>
+      <svg id="dfa" role="img" aria-label="State diagram of the selected automaton at the selected time"></svg>
+      <div id="dfaKey">
+        <span><i style="border-color:var(--s1);border-top-width:3px"></i>transition just taken</span>
+        <span><i></i>taken earlier</span>
+        <span><i style="border-color:var(--ink2);border-top-width:1.4px"></i>possible from the current state</span>
+        <span><i style="border-color:var(--axis);border-top-width:1.2px"></i>not reached</span>
+      </div>
+    </div>
+    <div id="dfaInfo"></div>
+  </div>
+</section>
 <div id="tlWrap">
   <div class="legend" id="legend"></div>
   <canvas id="tl" aria-label="Timeline of every label over the run"></canvas>
@@ -108,7 +173,7 @@
 </div>
 <script>
 const DATA = /*DATA*/null;
-const P = DATA.props, GROUPS = DATA.groups;
+const P = DATA.props, GROUPS = DATA.groups, A = DATA.automata;
 const $ = id => document.getElementById(id);
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const groupColor = g => css('--s' + (GROUPS.indexOf(g) + 1));
@@ -134,6 +199,11 @@ function selectRun(i) {
   $('verdict').textContent = text;
   $('verdict').style.color = run.verdict === 'MISMATCH' ? css('--critical') : css('--ink');
   $('story').textContent = run.story + (run.why_driver ? '  Driver: ' + run.why_driver : '');
+  const sp = run.spec;
+  const broken = sp.violations.length ? sp.violations.map(v => `<b>${v[0]}</b> at ${v[1].toFixed(1)} s`).join(', ') : 'none';
+  $('ruling').innerHTML = `Automata: ${sp.completed ? '✓ reached the destination' : '✗ did not reach the destination (got as far as: ' + sp.progress + ')'}`
+    + ` &middot; rules broken: ${broken} &middot; halted: <b>${sp.waited.replace('_', ' ')}</b> &middot; idle while free: ${sp.idle.toFixed(1)} s`
+    + ` &middot; ${sp.as_expected ? '✓ the verdict expected for this run' : '✗ expected: ' + sp.expected}`;
   $('phases').innerHTML = run.phases.map((p, k) => {
     const when = p.t === null ? (p.optional ? 'skipped' : 'never') : p.t.toFixed(1) + ' s';
     return `<li data-k="${k}" class="${p.t === null && !p.optional ? 'missed' : ''}" title="${p.literals}"><span class="when">${when}</span>${p.optional ? '(' + p.name + ')' : p.name}</li>`;
@@ -160,7 +230,7 @@ function show() {
   const why = run.why[frame];
   $('why').innerHTML = why.length ? why.map(w => `<li>${w}</li>`).join('') : '<li style="list-style:none;margin-left:-16px;color:var(--muted)">none at this moment</li>';
   document.querySelectorAll('#phases li').forEach(li => li.classList.toggle('cur', +li.dataset.k === run.phase[frame]));
-  drawMap(); drawTimeline();
+  drawMap(); drawDfa(); drawTimeline();
 }
 
 function prep(canvas, h) {
@@ -200,11 +270,144 @@ function drawMap() {
   });
 }
 
-const GUTTER = 168, ROW = 19, AXIS = 30;
+// ---- live state diagram ------------------------------------------------------------------
+let focus = Math.max(0, A.findIndex(a => a.name === 'respect_right_of_way'));
+const pIndex = Object.fromEntries(P.map((p, k) => [p.name, k]));
+const spaced = s => s.replace(/_/g, ' ');
+const litText = lit => lit.startsWith('!') ? '¬' + lit.slice(1) : lit;
+const litHolds = (lit, bits) => lit.startsWith('!') ? !on(bits, pIndex[lit.slice(1)]) : !!on(bits, pIndex[lit]);
+function wrapLiterals(cond, maxChars) {       // a condition -> lines, each a list of literals
+  const lines = [[]]; let len = 0;
+  cond.split(' ').forEach(lit => {
+    if (len + lit.length + 3 > maxChars && lines[lines.length - 1].length) { lines.push([]); len = 0; }
+    lines[lines.length - 1].push(lit); len += lit.length + 3;
+  });
+  return lines;
+}
+
+function drawDfa() {
+  const a = A[focus], seq = run.auto[focus], cur = seq[frame], bits = run.labels[frame], names = a.states;
+  const isBad = s => a.bad.includes(s), isGood = s => a.good.includes(s);
+
+  // tabs: every automaton with its state now; the selected one is drawn below
+  $('dfaTabs').innerHTML = A.map((b, k) => {
+    const s = b.states[run.auto[k][frame]];
+    const cls = b.bad.includes(s) ? 'bad' : b.good.includes(s) ? 'good' : '';
+    return `<button class="${k === focus ? 'sel ' : ''}${cls}" data-k="${k}" title="${b.rule}">${b.name}<span>${cls === 'bad' ? '✗ ' : cls === 'good' ? '✓ ' : ''}${spaced(s)}</span></button>`;
+  }).join('');
+
+  // the flow so far: every change of state up to the selected frame
+  const taken = [], visited = new Set([0]);
+  let prev = 0, last = null;
+  for (let i = 0; i <= frame; i++) if (seq[i] !== prev) { last = [prev, seq[i], run.t[i]]; taken.push(last); visited.add(seq[i]); prev = seq[i]; }
+
+  // edges, merged per ordered pair of states
+  const groups = new Map();
+  Object.entries(a.transitions).forEach(([from, moves]) => moves.forEach(([cond, to]) => {
+    const key = from + '>' + to;
+    if (!groups.has(key)) groups.set(key, {from, to, conds: []});
+    groups.get(key).conds.push(cond);
+  }));
+  const edges = [...groups.values()];
+  const main = names.filter(s => !isBad(s)), bad = names.filter(isBad);
+  const svg = $('dfa'), W = Math.max(440, svg.clientWidth || 640), NH = 30, LH = 12.5;
+  const nodeW = s => Math.max(62, s.length * 7.4 + 26);
+  edges.forEach(e => {
+    e.lines = [];
+    e.conds.forEach((c, k) => { if (k) e.lines.push(null); wrapLiterals(c, 30).forEach(l => e.lines.push(l)); });
+    const i = main.indexOf(e.from), j = main.indexOf(e.to);
+    e.kind = j < 0 ? 'down' : j > i ? 'fwd' : 'back';
+    e.span = Math.abs(j - i);
+    if (e.kind === 'fwd') e.h = (e.span === 1 && !groups.has(e.to + '>' + e.from)) ? 0 : 24 + 30 * (e.span - 1);
+  });
+  // Arcs going back: below the row when that space is free. If the automaton has a `violated`
+  // state, the space below belongs to the edges leading to it, so those arcs go above instead,
+  // higher than the forward arcs and their labels.
+  const backOnTop = bad.length > 0;
+  const fwdLines = Math.max(0, ...edges.filter(e => e.kind === 'fwd' && e.h > 0).map(e => e.lines.length));
+  edges.forEach(e => {
+    if (e.kind === 'back') e.h = backOnTop ? 24 + 30 * (e.span - 1) + fwdLines * LH + 16 : 28 + 28 * (e.span - 1);
+  });
+  const reach = e => e.h + e.lines.length * LH + 8;
+  const above = Math.max(0, ...edges.filter(e => e.kind === 'fwd' || (backOnTop && e.kind === 'back')).map(reach));
+  const below = backOnTop ? 0 : Math.max(0, ...edges.filter(e => e.kind === 'back').map(e => reach(e) + 2));
+  const yMain = 14 + above + NH / 2;
+  const yBad = yMain + NH + Math.max(below + 30, 104);
+  const H = (bad.length ? yBad + NH / 2 : yMain + NH / 2 + below) + 14;
+  const xl = 36 + nodeW(main[0]) / 2, xr = W - 16 - nodeW(main[main.length - 1]) / 2;
+  const pos = {};
+  main.forEach((s, i) => pos[s] = [main.length === 1 ? W / 2 : xl + i * (xr - xl) / (main.length - 1), yMain]);
+  bad.forEach((s, i) => pos[s] = [W / 2 + (i - (bad.length - 1) / 2) * 190, yBad]);
+
+  const edgeClass = e => {
+    const f = names.indexOf(e.from), t = names.indexOf(e.to);
+    if (last && last[0] === f && last[1] === t) return 'last';
+    if (taken.some(x => x[0] === f && x[1] === t)) return 'taken';
+    return f === cur ? 'open' : 'none';
+  };
+  const out = [`<defs>` + ['none', 'open', 'taken', 'last'].map(c =>
+    `<marker id="arr-${c}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="${c === 'last' ? 5 : 7}" markerHeight="${c === 'last' ? 5 : 7}" orient="auto-start-reverse"><path class="ah ${c}" d="M0,0 L10,5 L0,10 z"/></marker>`).join('') + `</defs>`];
+  const labels = [];
+  edges.forEach(e => {
+    const [x1, y1] = pos[e.from], [x2, y2] = pos[e.to], c = edgeClass(e);
+    let d, lx, ly, anchor = 'middle', up = true;
+    if (e.kind === 'fwd' && e.h === 0) {
+      const p = x1 + nodeW(e.from) / 2, q = x2 - nodeW(e.to) / 2 - 3;
+      d = `M${p},${y1} L${q},${y2}`; lx = (p + q) / 2; ly = y1 - NH / 2 - 5;   // above the boxes, so a wide label cannot run into them
+    } else if (e.kind === 'fwd') {
+      const p = x1 + 12, q = x2 - 12, y = y1 - NH / 2;
+      d = `M${p},${y} Q${(p + q) / 2},${y - 2 * e.h} ${q},${y - 3}`; lx = (p + q) / 2; ly = y - e.h - 6;
+    } else if (e.kind === 'back' && backOnTop) {
+      const p = x1 + 6, q = x2 - 6, y = y1 - NH / 2;      // wider than the forward arc it sits over
+      d = `M${p},${y} Q${(p + q) / 2},${y - 2 * e.h} ${q},${y - 3}`; lx = (p + q) / 2; ly = y - e.h - 6;
+    } else if (e.kind === 'back') {
+      const p = x1 - 10, q = x2 + 10, y = y1 + NH / 2;
+      d = `M${p},${y} Q${(p + q) / 2},${y + 2 * e.h} ${q},${y + 3}`; lx = (p + q) / 2; ly = y + e.h + 14; up = false;
+    } else {                                   // down to a 'violated' state
+      const mates = edges.filter(o => o.kind === 'down' && o.to === e.to), n = mates.length, k = mates.indexOf(e);
+      const tx = x2 + (k - (n - 1) / 2) * Math.min(46, nodeW(e.to) / (n + 0.5)), ty = y2 - NH / 2 - 3, sy = y1 + NH / 2;
+      d = `M${x1},${sy} L${tx},${ty}`;
+      lx = x1 + (tx - x1) * 0.45; ly = sy + (ty - sy) * 0.45 + 4; up = false;
+      if (x1 <= x2) { anchor = 'end'; lx -= 9; } else { anchor = 'start'; lx += 9; }
+    }
+    out.push(`<path class="edge ${c}" d="${d}" marker-end="url(#arr-${c})"/>`);
+    const live = names.indexOf(e.from) === cur, y0 = up ? ly - (e.lines.length - 1) * LH : ly;
+    labels.push(`<text class="elabel ${c}" text-anchor="${anchor}">` + e.lines.map((line, r) =>
+      `<tspan x="${lx}" y="${y0 + r * LH}">` + (line === null ? 'or' : line.map((lit, q) =>
+        (q ? ' ∧ ' : '') + `<tspan class="${live ? (litHolds(lit, bits) ? 'yes' : 'no') : ''}">${litText(lit)}</tspan>`).join('')) + `</tspan>`).join('') + `</text>`);
+  });
+  const [ix, iy] = pos[names[0]], iw = nodeW(names[0]);
+  out.push(`<circle class="init" cx="${ix - iw / 2 - 22}" cy="${iy}" r="4"/><path class="edge open" d="M${ix - iw / 2 - 18},${iy} L${ix - iw / 2 - 3},${iy}" marker-end="url(#arr-open)"/>`);
+  names.forEach((s, k) => {
+    const [x, y] = pos[s], w = nodeW(s);
+    const c = (k === cur ? 'cur ' : visited.has(k) ? 'seen ' : '') + (isBad(s) ? 'bad' : isGood(s) ? 'good' : '');
+    out.push(`<rect class="node ${c}" x="${x - w / 2}" y="${y - NH / 2}" width="${w}" height="${NH}" rx="${isBad(s) || isGood(s) ? 15 : 7}"/>`
+           + `<text class="nlabel ${c}" x="${x}" y="${y + 4}" text-anchor="middle">${spaced(s)}</text>`);
+  });
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.style.height = H + 'px';
+  svg.innerHTML = out.join('') + labels.join('');
+
+  // beside the diagram: the rule, the path so far, and what each way out is waiting for
+  const moves = a.transitions[names[cur]] || [];
+  const ways = moves.length ? moves.map(([cond, to]) => `<li>&rarr; <b>${spaced(to)}</b> when ` + cond.split(' ').map(lit => {
+      const ok = litHolds(lit, bits);
+      return `<span class="${ok ? 'yes' : 'no'}">${litText(lit)} ${ok ? '✓' : '✗'}</span>`; }).join(' and ') + `</li>`).join('')
+    : `<li class="muted">Nothing leaves this state.</li>`;
+  const path = [[0, null]].concat(taken.map(x => [x[1], x[2]]));
+  $('dfaInfo').innerHTML = `<h3>${a.name} (${a.kind})</h3><div>${a.rule}</div>`
+    + `<h3>Path so far</h3><div id="dfaPath">` + path.map(([k, t]) =>
+        `<a data-t="${t === null ? run.t[0] : t}">${spaced(names[k])} <small>${t === null ? 'start' : t.toFixed(1) + ' s'}</small></a>`).join(' &rarr; ') + `</div>`
+    + `<h3>From &ldquo;${spaced(names[cur])}&rdquo;, now</h3><ul>${ways}</ul>`;
+}
+$('dfaTabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { focus = +b.dataset.k; show(); } });
+$('dfaInfo').addEventListener('click', e => { const l = e.target.closest('a[data-t]'); if (l) { stop(); go(run.t.indexOf(+l.dataset.t)); } });
+
+const GUTTER = 168, ROW = 19, AXIS = 30, AGAP = 26, AROW = 22;
+const autoTop = () => AXIS + P.length * ROW + AGAP;   // where the automaton rows start
 function tlGeom(w) { const t0 = run.t[0], t1 = run.t[run.t.length - 1] + DATA.dt; return {t0, t1, X: t => GUTTER + (t - t0) / (t1 - t0) * (w - GUTTER - 10)}; }
 
 function drawTimeline() {
-  const [g, w, h] = prep($('tl'), AXIS + P.length * ROW + 6);
+  const [g, w, h] = prep($('tl'), autoTop() + A.length * AROW + 6);
   const {t0, t1, X} = tlGeom(w), bits = run.labels[frame];
   g.textBaseline = 'middle';
   // time axis
@@ -235,6 +438,32 @@ function drawTimeline() {
         g.beginPath(); g.roundRect(xa, y + 5, Math.max(1.5, xb - xa), ROW - 10, 3); g.fill(); s = -1; }
     }
   });
+  // automata: one band per automaton, split wherever its state changes, the state named inside
+  const top = autoTop();
+  g.font = '11px system-ui, sans-serif'; g.textAlign = 'left'; g.fillStyle = css('--muted');
+  g.fillText('AUTOMATA: STATE OVER TIME', 10, top - AGAP / 2 + 2);
+  g.strokeStyle = css('--axis'); g.lineWidth = 1; g.beginPath(); g.moveTo(8, top - AGAP + 4.5); g.lineTo(w - 6, top - AGAP + 4.5); g.stroke();
+  A.forEach((a, k) => {
+    const y = top + k * AROW, seq = run.auto[k], now = a.states[seq[frame]];
+    const nowBad = a.bad.includes(now);
+    g.textAlign = 'right'; g.font = '12px system-ui, sans-serif';
+    g.fillStyle = nowBad ? css('--critical') : css('--ink2'); g.fillText(a.name, GUTTER - 10, y + AROW / 2);
+    let s = 0;
+    for (let i = 1; i <= seq.length; i++) {
+      if (i < seq.length && seq[i] === seq[s]) continue;
+      const name = a.states[seq[s]], xa = X(run.t[s]), xb = X(run.t[i - 1] + DATA.dt), wd = Math.max(1.5, xb - xa - 1);
+      const bad = a.bad.includes(name), good = a.good.includes(name);
+      g.fillStyle = bad ? css('--critical') : good ? css('--good') : css('--grid');
+      g.beginPath(); g.roundRect(xa, y + 3, wd, AROW - 6, 3); g.fill();
+      if (!bad && !good) { g.strokeStyle = css('--axis'); g.lineWidth = 1; g.stroke(); }
+      const text = name.replace(/_/g, ' ');
+      g.font = '11px system-ui, sans-serif';
+      if (g.measureText(text).width + 8 <= wd) {
+        g.textAlign = 'center'; g.fillStyle = (bad || good) ? '#ffffff' : css('--ink'); g.fillText(text, xa + wd / 2, y + AROW / 2 + 0.5);
+      }
+      s = i;
+    }
+  });
   // cursor
   g.strokeStyle = css('--ink'); g.lineWidth = 1.5; g.beginPath(); g.moveTo(X(run.t[frame]), 14); g.lineTo(X(run.t[frame]), h - 2); g.stroke();
 }
@@ -243,7 +472,10 @@ function frameAt(ev) {
   const r = $('tl').getBoundingClientRect(), {t0, t1} = tlGeom(r.width);
   const t = t0 + (ev.clientX - r.left - GUTTER) / (r.width - GUTTER - 10) * (t1 - t0);
   const i = Math.max(0, Math.min(run.t.length - 1, Math.round((t - t0) / DATA.dt)));
-  const k = Math.floor((ev.clientY - r.top - AXIS) / ROW);
+  const y = ev.clientY - r.top;
+  // rows 0..P.length-1 are labels; P.length.. are automata; -1 is neither
+  const k = y >= autoTop() ? P.length + Math.floor((y - autoTop()) / AROW)
+          : y < AXIS + P.length * ROW ? Math.floor((y - AXIS) / ROW) : -1;
   return [i, k];
 }
 function go(i) { frame = Math.max(0, Math.min(run.t.length - 1, i)); show(); }
@@ -274,8 +506,9 @@ window.addEventListener('mouseup', () => dragging = false);
 $('tl').onmousemove = e => {
   const [i, k] = frameAt(e), tip = $('tip');
   if (dragging) go(i);
-  if (k < 0 || k >= P.length) { tip.style.display = 'none'; return; }
-  tip.textContent = `${run.t[i].toFixed(1)} s · ${P[k].name} is ${on(run.labels[i], k) ? 'true' : 'false'}`;
+  if (k < 0 || k >= P.length + A.length) { tip.style.display = 'none'; return; }
+  if (k < P.length) tip.textContent = `${run.t[i].toFixed(1)} s · ${P[k].name} is ${on(run.labels[i], k) ? 'true' : 'false'}`;
+  else { const a = A[k - P.length]; tip.textContent = `${run.t[i].toFixed(1)} s · ${a.name} is in state "${a.states[run.auto[k - P.length][i]].replace(/_/g, ' ')}"`; }
   tip.style.display = 'block';
   const wrap = $('tlWrap').getBoundingClientRect();
   tip.style.left = Math.min(wrap.width - tip.offsetWidth - 6, e.clientX - wrap.left + 12) + 'px';

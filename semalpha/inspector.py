@@ -14,14 +14,16 @@ import sys
 from pathlib import Path
 
 from semalpha import OUTPUTS
-from semalpha.expected import EXPECTED
+from semalpha.expected import EXPECTED, EXPECTED_VERDICT
 from semalpha.helpers import Polyline, load_thresholds
 from semalpha.label import Trace, compare, run_file
 from semalpha.mapinfo import MapInfo
 from semalpha.predicates import GROUP, PROPOSITIONS
 from semalpha.record import Run
 from semalpha.relations import Scene
+from semalpha.rules import AUTOMATA
 from semalpha.scenarios import SCENARIOS
+from semalpha.verify import describe, judge, same
 
 NAMES = list(PROPOSITIONS)
 
@@ -79,6 +81,8 @@ def _run_payload(scenario, variant, driver, thresholds) -> dict:
     trace = Trace(run, [f.t for f in run.frames], labels)
     expectation = EXPECTED[(scenario.name, variant.name, driver)]
     match = compare(trace, expectation)
+    judgement = judge(trace)
+    expected_verdict = EXPECTED_VERDICT[(scenario.name, variant.name, driver)]
 
     region = scene.regions[0]
     path = scene.path
@@ -111,6 +115,17 @@ def _run_payload(scenario, variant, driver, thresholds) -> dict:
         "why": why,
         "labels": [sum(1 << k for k, n in enumerate(NAMES) if n in s) for s in labels],
         "phase": match.phase_of_frame,
+        # for each automaton, the index of its state after every frame
+        "auto": [[a.states.index(s) for s in judgement.states[a.name]] for a in AUTOMATA],
+        "spec": {
+            "completed": judgement.completed,
+            "progress": judgement.progress.replace("_", " "),
+            "violations": [[rule, _r(t, 1)] for rule, t in judgement.violations],
+            "waited": judgement.waited,
+            "idle": _r(judgement.idle_while_free_s, 1),
+            "as_expected": same(judgement.verdict, expected_verdict),
+            "expected": describe(expected_verdict),
+        },
     }
 
 
@@ -122,6 +137,10 @@ def build(out: Path = OUTPUTS / "inspector.html") -> Path:
         "groups": groups,
         "props": [{"name": n, "group": GROUP[n],
                    "doc": " ".join((PROPOSITIONS[n].__doc__ or n.replace("_", " ")).split())} for n in NAMES],
+        "automata": [{"name": a.name, "kind": a.kind, "rule": a.rule, "states": a.states,
+                      "good": list(a.good), "bad": list(a.bad),
+                      "transitions": {s: [list(m) for m in moves] for s, moves in a.transitions.items()}}
+                     for a in AUTOMATA],
         "maps": {},
         "runs": [],
     }

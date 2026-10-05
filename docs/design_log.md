@@ -87,3 +87,59 @@ Findings about the vocabulary:
 - `conflict_present` adds a distinction that lasts 4 s in total across all runs.
 - A gap margin of 2 s is the only tested value consistent with both the reference driver's
   entries and the staged unsafe entries.
+
+## 2026-10-05: Checkpoint 3 decision
+
+The labels and thresholds are kept exactly as they are for the current setting. More edge
+cases will be needed to improve them further; that is deferred. Work moves to the automata.
+
+## 2026-10-05: Rule automata, first version
+
+**One rule set for every scenario, built from small automata** (`semalpha/rules.py`),
+instead of one automaton per scene. The labels were designed to be independent of junction
+type; a single rule set judging a stop sign, a signal and a roundabout is the direct test
+of that. Small automata also say which rule was broken and when.
+
+- `reach_goal` (task): approach, at_line, inside, cleared, done.
+- Six rules, each with a `violated` state that is never left: `stop_at_stop_sign`,
+  `obey_red_signal`, `stop_on_yellow_when_able`, `respect_right_of_way`, `no_collision`,
+  `stay_on_road`.
+- `where_it_waited` (branch): nowhere, at_line, inside, both.
+
+Design choices:
+
+- **Memory lives in the automata.** `obey_red_signal` remembers whether the ego was outside
+  or inside, so being inside when the light turns red is lawful while entering on red is
+  not. This is the distinction a single frame could not make (vocabulary open point 6).
+- **Right of way is judged at the moment of committing**, that is, when the ego leaves the
+  waiting area. A gap that turns unsafe afterwards is not held against the ego.
+- **"Idle while free" is a plain measurement, not an automaton**, because it counts time.
+- Transitions are ordered and conditions are conjunctions of labels, the same notation as
+  the label expectations.
+
+Result on the 26 recorded runs: 26 of 26 verdicts as written down beforehand
+(`EXPECTED_VERDICT`). No lawful run raises a false alarm on any junction type; every
+staged violation is caught by the intended rule.
+
+Stability of the verdicts when a label threshold is changed (`verify --set`):
+
+| Change | Verdicts as expected |
+|---|---|
+| gap margin 2.5, 3 or 4 s (default 2) | 26 |
+| gap margin 1 or 1.5 s | 25: the entry in front of a possibly conflicting ring car is no longer a violation |
+| comfortable braking 2 or 4.5 m/s² (default 3) | 26 |
+| other car assumed at least at the speed limit | 26 |
+| stopped below 0.5 m/s (default 0.1) | 26 |
+| path half-width 1.3 m (default 1.0), commit heading 10° (default 20°) | 26 |
+| entry-line tolerance 1 m (default 2) | 21: cars that stop 1.0 to 1.1 m short of the line are not seen as stopped at the line |
+
+So the verdicts are much less sensitive to thresholds than the frame-by-frame label
+sequences were. The one fragile number is the entry-line tolerance: it must be larger
+than the distance at which drivers actually stop.
+
+Limits of this result: no run breaks `stop_on_yellow_when_able` or `stay_on_road`; the
+expectations were written with knowledge of the label sequences; the runs are the ones the
+labels were developed on.
+
+Labels no automaton needs so far: `approaching_junction`, `others_can_yield`,
+`path_blocked`, `exit_clear`.

@@ -179,3 +179,67 @@ EXPECTED: Dict[Tuple[str, str, str], Expectation] = {
          REST, OUT, DONE),
         never=("collision", "off_road", "ego_stopped", "conflict_present !ego_has_priority")),
 }
+
+
+# ==========================================================================================
+# Expected verdicts of the rule automata (semalpha/rules.py)
+#
+# Written BEFORE the automata, from what each run was staged to show. For every run:
+#   completed  - does the ego get through the junction and reach its destination?
+#   violations - which rules does it break?
+#   waited     - where does it come to a halt on the way: nowhere, at_line, inside
+#                (in the waiting area inside the junction), or both?
+# ==========================================================================================
+
+@dataclass(frozen=True)
+class Verdict:
+    completed: bool = True
+    violations: Tuple[str, ...] = ()
+    waited: str = "nowhere"
+
+
+STOP_SIGN = "stop_at_stop_sign"
+RED = "obey_red_signal"
+YELLOW = "stop_on_yellow_when_able"
+RIGHT_OF_WAY = "respect_right_of_way"
+COLLISION = "no_collision"
+OFF_ROAD = "stay_on_road"
+
+EXPECTED_VERDICT: Dict[Tuple[str, str, str], Verdict] = {
+    # A. stop-sign left turn: a lawful run always halts at the line
+    ("t_stop_left", "clear", "sumo"): Verdict(waited="at_line"),
+    ("t_stop_left", "clear", "roll_through"): Verdict(violations=(STOP_SIGN,)),
+    ("t_stop_left", "wait_for_gap", "sumo"): Verdict(waited="at_line"),
+    ("t_stop_left", "wait_for_gap", "enter_too_early"): Verdict(violations=(RIGHT_OF_WAY,), waited="at_line"),
+    ("t_stop_left", "wait_for_gap", "overcautious"): Verdict(waited="at_line"),
+    ("t_stop_left", "gap_closes", "sumo"): Verdict(waited="at_line"),
+    # the simulator's driver knows the other car will turn off; judged on what is visible, it enters too early
+    ("t_stop_left", "other_turns_off", "sumo"): Verdict(violations=(RIGHT_OF_WAY,), waited="at_line"),
+    ("t_stop_left", "other_turns_off", "wait_until_it_turns"): Verdict(waited="at_line"),
+
+    # B. unprotected left from the main road: no stop owed; waiting happens inside the junction
+    ("t_major_left", "clear", "sumo"): Verdict(),
+    ("t_major_left", "oncoming_then_gap", "sumo"): Verdict(waited="inside"),
+    ("t_major_left", "oncoming_then_gap", "turn_across"): Verdict(
+        completed=False, violations=(RIGHT_OF_WAY, COLLISION)),
+    ("t_major_left", "oncoming_then_gap", "wait_in_junction"): Verdict(waited="inside"),
+    ("t_major_left", "minor_car_waiting", "sumo"): Verdict(),
+    ("t_major_left", "oncoming_turns_right", "sumo"): Verdict(waited="inside"),
+
+    # C. signal
+    ("signal_straight", "green", "sumo"): Verdict(),
+    ("signal_straight", "red_then_green", "sumo"): Verdict(waited="at_line"),
+    ("signal_straight", "red_then_green", "run_red"): Verdict(violations=(RED, RIGHT_OF_WAY)),
+    ("signal_straight", "yellow_far", "sumo"): Verdict(waited="at_line"),
+    ("signal_straight", "yellow_near", "sumo"): Verdict(),      # enters on yellow, but could not have stopped
+    ("signal_left", "oncoming_then_gap", "sumo"): Verdict(waited="inside"),
+
+    # D. roundabout
+    ("roundabout", "empty", "sumo"): Verdict(),
+    ("roundabout", "yield_to_circulating", "sumo"): Verdict(waited="at_line"),
+    ("roundabout", "yield_to_circulating", "cut_in"): Verdict(
+        completed=False, violations=(RIGHT_OF_WAY, COLLISION)),
+    ("roundabout", "circulating_exits", "sumo"): Verdict(violations=(RIGHT_OF_WAY,)),   # same reason as other_turns_off
+    ("roundabout", "circulating_exits", "wait_until_it_exits"): Verdict(waited="at_line"),
+    ("roundabout", "entering_car_yields", "sumo"): Verdict(),
+}
