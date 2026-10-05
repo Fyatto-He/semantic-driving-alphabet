@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Four-way junction controlled by a fixed-time traffic light. -->
+<nodes>
+    <node id="W" x="0"   y="100"/>
+    <node id="E" x="200" y="100"/>
+    <node id="S" x="100" y="0"/>
+    <node id="N" x="100" y="200"/>
+    <node id="J" x="100" y="100" type="traffic_light"/>
+</nodes>

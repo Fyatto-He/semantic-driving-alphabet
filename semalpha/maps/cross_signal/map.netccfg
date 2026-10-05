@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <input>
+        <node-files value="map.nod.xml"/>
+        <edge-files value="map.edg.xml"/>
+    </input>
+    <processing>
+        <no-turnarounds value="true"/>
+        <junctions.corner-detail value="5"/>
+    </processing>
+    <tls_building>
+        <!-- Short cycle so a whole red/green/yellow sequence fits in one short episode. -->
+        <tls.green.time value="20"/>
+        <tls.yellow.time value="3"/>
+        <tls.allred.time value="2"/>
+    </tls_building>
+    <report>
+        <no-warnings value="true"/>
+    </report>
+</configuration>

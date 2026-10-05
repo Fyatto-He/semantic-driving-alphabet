@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Single-lane, four-arm roundabout. Ring centre (120,120), ring centreline radius 16 m. -->
+<nodes>
+    <node id="rE" x="136" y="120"/>
+    <node id="rN" x="120" y="136"/>
+    <node id="rW" x="104" y="120"/>
+    <node id="rS" x="120" y="104"/>
+    <node id="E" x="240" y="120"/>
+    <node id="N" x="120" y="240"/>
+    <node id="W" x="0"   y="120"/>
+    <node id="S" x="120" y="0"/>
+</nodes>

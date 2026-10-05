@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Edge "XY" runs from node X to node Y. All approaches are equal; the signal decides. -->
+<edges>
+    <edge id="WJ" from="W" to="J" priority="2" numLanes="1" speed="13.89"/>
+    <edge id="JE" from="J" to="E" priority="2" numLanes="1" speed="13.89"/>
+    <edge id="EJ" from="E" to="J" priority="2" numLanes="1" speed="13.89"/>
+    <edge id="JW" from="J" to="W" priority="2" numLanes="1" speed="13.89"/>
+    <edge id="SJ" from="S" to="J" priority="2" numLanes="1" speed="13.89"/>
+    <edge id="JS" from="J" to="S" priority="2" numLanes="1" speed="13.89"/>
+    <edge id="NJ" from="N" to="J" priority="2" numLanes="1" speed="13.89"/>
+    <edge id="JN" from="J" to="N" priority="2" numLanes="1" speed="13.89"/>
+</edges>

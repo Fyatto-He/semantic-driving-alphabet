@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Ring runs counter-clockwise (right-hand traffic): E -> N -> W -> S -> E.
+  Ring edge shapes are points every 15 degrees on the circle of radius 16 m around (120,120).
+  Arms: "X_in" drives towards the ring, "X_out" away from it.
+-->
+<edges>
+    <edge id="ring_EN" from="rE" to="rN" priority="3" numLanes="1" speed="8.33"
+          shape="136.00,120.00 135.45,124.14 133.86,128.00 131.31,131.31 128.00,133.86 124.14,135.45 120.00,136.00"/>
+    <edge id="ring_NW" from="rN" to="rW" priority="3" numLanes="1" speed="8.33"
+          shape="120.00,136.00 115.86,135.45 112.00,133.86 108.69,131.31 106.14,128.00 104.55,124.14 104.00,120.00"/>
+    <edge id="ring_WS" from="rW" to="rS" priority="3" numLanes="1" speed="8.33"
+          shape="104.00,120.00 104.55,115.86 106.14,112.00 108.69,108.69 112.00,106.14 115.86,104.55 120.00,104.00"/>
+    <edge id="ring_SE" from="rS" to="rE" priority="3" numLanes="1" speed="8.33"
+          shape="120.00,104.00 124.14,104.55 128.00,106.14 131.31,108.69 133.86,112.00 135.45,115.86 136.00,120.00"/>
+
+    <edge id="E_in"  from="E"  to="rE" priority="2" numLanes="1" speed="13.89"/>
+    <edge id="E_out" from="rE" to="E"  priority="2" numLanes="1" speed="13.89"/>
+    <edge id="N_in"  from="N"  to="rN" priority="2" numLanes="1" speed="13.89"/>
+    <edge id="N_out" from="rN" to="N"  priority="2" numLanes="1" speed="13.89"/>
+    <edge id="W_in"  from="W"  to="rW" priority="2" numLanes="1" speed="13.89"/>
+    <edge id="W_out" from="rW" to="W"  priority="2" numLanes="1" speed="13.89"/>
+    <edge id="S_in"  from="S"  to="rS" priority="2" numLanes="1" speed="13.89"/>
+    <edge id="S_out" from="rS" to="S"  priority="2" numLanes="1" speed="13.89"/>
+
+    <roundabout nodes="rE rN rW rS" edges="ring_EN ring_NW ring_WS ring_SE"/>
+</edges>

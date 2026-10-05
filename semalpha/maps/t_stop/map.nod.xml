@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- T-junction. Major road W<->E, minor road from S controlled by a STOP sign. -->
+<nodes>
+    <node id="W" x="0"   y="100"/>
+    <node id="E" x="200" y="100"/>
+    <node id="S" x="100" y="0"/>
+    <node id="J" x="100" y="100" type="priority_stop"/>
+</nodes>

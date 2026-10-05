@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- priority: higher = major road. The S leg is minor, so it gets the stop sign at J. -->
+<edges>
+    <edge id="WJ" from="W" to="J" priority="3" numLanes="1" speed="13.89"/>
+    <edge id="JE" from="J" to="E" priority="3" numLanes="1" speed="13.89"/>
+    <edge id="EJ" from="E" to="J" priority="3" numLanes="1" speed="13.89"/>
+    <edge id="JW" from="J" to="W" priority="3" numLanes="1" speed="13.89"/>
+    <edge id="SJ" from="S" to="J" priority="1" numLanes="1" speed="13.89"/>
+    <edge id="JS" from="J" to="S" priority="1" numLanes="1" speed="13.89"/>
+</edges>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Edge "XY" runs from node X to node Y. Higher priority = major road. -->
+<edges>
+    <edge id="WJ" from="W" to="J" priority="3" numLanes="1" speed="13.89"/>
+    <edge id="JE" from="J" to="E" priority="3" numLanes="1" speed="13.89"/>
+    <edge id="EJ" from="E" to="J" priority="3" numLanes="1" speed="13.89"/>
+    <edge id="JW" from="J" to="W" priority="3" numLanes="1" speed="13.89"/>
+    <edge id="SJ" from="S" to="J" priority="1" numLanes="1" speed="8.33"/>
+    <edge id="JS" from="J" to="S" priority="1" numLanes="1" speed="8.33"/>
+</edges>

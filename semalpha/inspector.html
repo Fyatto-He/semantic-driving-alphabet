@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Label inspector</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface: #fcfcfb; --panel: #f4f3f0; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+    --road: #e3e2de; --road-edge: #c9c8c2;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300;
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface: #1a1a19; --panel: #232321; --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+      --road: #2e2e2b; --road-edge: #3d3d39;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface: #1a1a19; --panel: #232321; --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --road: #2e2e2b; --road-edge: #3d3d39;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--surface); color: var(--ink);
+         font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { padding: 12px 16px 8px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  h1 { font-size: 15px; margin: 0; font-weight: 650; }
+  select, button { font: inherit; color: var(--ink); background: var(--panel);
+                   border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+  button { cursor: pointer; min-width: 34px; }
+  button:hover { border-color: var(--axis); }
+  #verdict { font-weight: 600; }
+  #story { flex-basis: 100%; color: var(--ink2); }
+  main { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, 1fr); gap: 12px; padding: 0 16px; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  #mapWrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  #map { width: 100%; height: 400px; display: block; }
+  #controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px; border-top: 1px solid var(--border); }
+  #slider { flex: 1 1 160px; min-width: 120px; accent-color: var(--s1); }
+  #clock { font-variant-numeric: tabular-nums; min-width: 62px; text-align: right; }
+  aside { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; }
+  .card h2 { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
+  #now { font-variant-numeric: tabular-nums; }
+  #changed { color: var(--ink2); min-height: 1.45em; }
+  #chips { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); white-space: nowrap; }
+  .chip i { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--axis); display: inline-block; }
+  .chip.on { color: var(--ink); font-weight: 600; }
+  #why { margin: 0; padding-left: 16px; color: var(--ink2); }
+  #why li { margin-bottom: 2px; }
+  #phases { margin: 0; padding-left: 20px; }
+  #phases li { padding: 1px 4px; border-left: 3px solid transparent; color: var(--ink2); }
+  #phases li.cur { border-left-color: var(--ink); color: var(--ink); font-weight: 600; }
+  #phases li.missed { color: var(--critical); }
+  #phases .when { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 400; margin-right: 6px; }
+  #notes { color: var(--ink2); margin: 6px 0 0; padding-left: 16px; }
+  #tlWrap { position: relative; margin: 12px 16px 20px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 6px 4px; }
+  #tl { width: 100%; display: block; cursor: crosshair; }
+  #tip { position: absolute; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--axis);
+         border-radius: 6px; padding: 3px 7px; font-size: 12px; white-space: nowrap; display: none; z-index: 2; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 2px 10px 6px; color: var(--ink2); font-size: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend i { width: 14px; height: 8px; border-radius: 3px; display: inline-block; }
+  kbd { font: inherit; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; background: var(--surface); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Label inspector</h1>
+  <select id="runSel" aria-label="Run"></select>
+  <span id="verdict"></span>
+  <div id="story"></div>
+</header>
+<main>
+  <div id="mapWrap">
+    <canvas id="map" aria-label="Top-down view of the junction at the selected time"></canvas>
+    <div id="controls">
+      <button id="bPrevChange" title="Previous label change (Shift+Left)">&#8676;</button>
+      <button id="bPrev" title="One frame back (Left)">&#9664;</button>
+      <button id="bPlay" title="Play / pause (Space)">&#9654;</button>
+      <button id="bNext" title="One frame forward (Right)">&#9654;&#10072;</button>
+      <button id="bNextChange" title="Next label change (Shift+Right)">&#8677;</button>
+      <input id="slider" type="range" min="0" value="0" aria-label="Time">
+      <span id="clock"></span>
+    </div>
+  </div>
+  <aside>
+    <div class="card"><h2>Now</h2><div id="now"></div><div id="changed"></div></div>
+    <div class="card"><h2>Labels</h2><div id="chips"></div></div>
+    <div class="card"><h2>Cars whose path may meet the ego's</h2><ul id="why"></ul></div>
+    <div class="card"><h2>Expected sequence</h2><ol id="phases"></ol><ul id="notes"></ul></div>
+  </aside>
+</main>
+<div id="tlWrap">
+  <div class="legend" id="legend"></div>
+  <canvas id="tl" aria-label="Timeline of every label over the run"></canvas>
+  <div id="tip"></div>
+</div>
+<script>
+const DATA = /*DATA*/null;
+const P = DATA.props, GROUPS = DATA.groups;
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const groupColor = g => css('--s' + (GROUPS.indexOf(g) + 1));
+const on = (bits, k) => (bits >> k) & 1;
+let run, frame = 0, timer = null;
+
+const sel = $('runSel');
+let lastScenario = null, og = null;
+DATA.runs.forEach((r, i) => {
+  if (r.scenario !== lastScenario) { og = document.createElement('optgroup'); og.label = r.scenario; sel.appendChild(og); lastScenario = r.scenario; }
+  const o = document.createElement('option');
+  o.value = i; o.textContent = r.variant + '  /  ' + r.driver + '   ' + ({match: '✓', 'match*': '≈', MISMATCH: '✗'}[r.verdict]);
+  og.appendChild(o);
+});
+$('legend').innerHTML = GROUPS.map(g => `<span><i style="background:${groupColor(g)}"></i>${g}</span>`).join('')
+  + '<span style="margin-left:auto"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> step &nbsp; <kbd>Shift</kbd>+arrow: jump to a label change &nbsp; <kbd>Space</kbd> play</span>';
+
+function selectRun(i) {
+  run = DATA.runs[i]; frame = 0; stop();
+  $('slider').max = run.t.length - 1;
+  const text = {match: '✓ matches the expected sequence', 'match*': '≈ reaches every milestone, with stretches the expectation does not explain',
+                MISMATCH: '✗ differs from the expected sequence'}[run.verdict];
+  $('verdict').textContent = text;
+  $('verdict').style.color = run.verdict === 'MISMATCH' ? css('--critical') : css('--ink');
+  $('story').textContent = run.story + (run.why_driver ? '  Driver: ' + run.why_driver : '');
+  $('phases').innerHTML = run.phases.map((p, k) => {
+    const when = p.t === null ? (p.optional ? 'skipped' : 'never') : p.t.toFixed(1) + ' s';
+    return `<li data-k="${k}" class="${p.t === null && !p.optional ? 'missed' : ''}" title="${p.literals}"><span class="when">${when}</span>${p.optional ? '(' + p.name + ')' : p.name}</li>`;
+  }).join('');
+  const notes = run.unexplained.map(u => `<li>⚠ ${u[0].toFixed(1)}&ndash;${u[1].toFixed(1)} s: labels fit neither the current nor the next expected phase</li>`)
+    .concat(run.violations.map(v => `<li>✗ from ${v[1].toFixed(1)} s for ${v[2].toFixed(1)} s: a combination expected never to occur [${v[0]}]</li>`));
+  $('notes').innerHTML = notes.join('');
+  show();
+}
+
+function show() {
+  $('slider').value = frame;
+  $('clock').textContent = run.t[frame].toFixed(1) + ' s';
+  const [speed, dist, signal] = run.ego[frame];
+  const where = dist === null ? 'past the junction' : dist >= 0 ? dist.toFixed(1) + ' m before the entry line' : (-dist).toFixed(1) + ' m past the entry line';
+  $('now').innerHTML = `ego speed <b>${speed.toFixed(1)} m/s</b> &middot; front bumper <b>${where}</b>` + (signal ? ` &middot; signal <b>${signal}</b>` : '');
+  const bits = run.labels[frame], prev = frame > 0 ? run.labels[frame - 1] : bits;
+  const delta = P.map((p, k) => on(bits, k) === on(prev, k) ? '' : (on(bits, k) ? '+' : '−') + p.name).filter(Boolean);
+  $('changed').textContent = delta.length ? 'changed at this frame: ' + delta.join('  ') : '';
+  $('chips').innerHTML = P.map((p, k) => {
+    const o = on(bits, k), c = groupColor(p.group);
+    return `<span class="chip ${o ? 'on' : ''}" title="${p.doc}"><i style="${o ? `background:${c};border-color:${c}` : ''}"></i>${p.name}</span>`;
+  }).join('');
+  const why = run.why[frame];
+  $('why').innerHTML = why.length ? why.map(w => `<li>${w}</li>`).join('') : '<li style="list-style:none;margin-left:-16px;color:var(--muted)">none at this moment</li>';
+  document.querySelectorAll('#phases li').forEach(li => li.classList.toggle('cur', +li.dataset.k === run.phase[frame]));
+  drawMap(); drawTimeline();
+}
+
+function prep(canvas, h) {
+  const dpr = window.devicePixelRatio || 1, w = canvas.clientWidth;
+  if (h) canvas.style.height = h + 'px';
+  const hh = canvas.clientHeight;
+  canvas.width = Math.round(w * dpr); canvas.height = Math.round(hh * dpr);
+  const g = canvas.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, hh);
+  return [g, w, hh];
+}
+
+function drawMap() {
+  const [g, w, h] = prep($('map'));
+  const [x0, y0, x1, y1] = run.window, sc = Math.min(w / (x1 - x0), h / (y1 - y0));
+  const ox = (w - sc * (x1 - x0)) / 2, oy = (h - sc * (y1 - y0)) / 2;
+  const X = x => ox + (x - x0) * sc, Y = y => h - oy - (y - y0) * sc;
+  const poly = pts => { g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(X(p[0]), Y(p[1])) : g.moveTo(X(p[0]), Y(p[1]))); };
+  const map = DATA.maps[run.map];
+  g.fillStyle = css('--road'); g.strokeStyle = css('--road-edge'); g.lineWidth = 0.5;
+  map.lanes.forEach(l => { poly(l); g.closePath(); g.fill(); g.stroke(); });
+  map.junctions.forEach(j => { poly(j); g.closePath(); g.fill(); });
+  g.strokeStyle = css('--s1'); g.globalAlpha = 0.35; g.lineWidth = 2; g.setLineDash([6, 5]); poly(run.route); g.stroke();
+  g.setLineDash([]); g.globalAlpha = 1;
+  g.strokeStyle = css('--ink'); g.lineWidth = 2.5; poly(run.entry_line); g.stroke();
+  const bits = run.labels[frame], crash = on(bits, P.findIndex(p => p.name === 'collision'));
+  g.font = '11px system-ui, sans-serif'; g.textAlign = 'center';
+  run.frames[frame].forEach(v => {
+    const [ci, x, y, yaw, len, wid] = v, ego = run.cars[ci] === 'ego';
+    g.save(); g.translate(X(x), Y(y)); g.rotate(-yaw);
+    g.fillStyle = ego ? css('--s1') : css('--s2');
+    g.beginPath(); g.roundRect(-len / 2 * sc, -wid / 2 * sc, len * sc, wid * sc, 2); g.fill();
+    if (ego && crash) { g.strokeStyle = css('--critical'); g.lineWidth = 2.5; g.stroke(); }
+    g.fillStyle = css('--surface'); g.globalAlpha = 0.75;
+    g.fillRect((len / 2 - 0.7) * sc, -wid / 2 * sc + 1, 0.45 * sc, wid * sc - 2);   // windscreen: shows which way it faces
+    g.restore();
+    g.fillStyle = css('--ink2'); g.fillText(run.cars[ci], X(x), Y(y) - wid * sc / 2 - 6);
+  });
+}
+
+const GUTTER = 168, ROW = 19, AXIS = 30;
+function tlGeom(w) { const t0 = run.t[0], t1 = run.t[run.t.length - 1] + DATA.dt; return {t0, t1, X: t => GUTTER + (t - t0) / (t1 - t0) * (w - GUTTER - 10)}; }
+
+function drawTimeline() {
+  const [g, w, h] = prep($('tl'), AXIS + P.length * ROW + 6);
+  const {t0, t1, X} = tlGeom(w), bits = run.labels[frame];
+  g.textBaseline = 'middle';
+  // time axis
+  g.font = '11px system-ui, sans-serif'; g.fillStyle = css('--muted'); g.textAlign = 'center';
+  const span = t1 - t0, step = span > 40 ? 10 : span > 16 ? 5 : 2;
+  for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) {
+    g.fillText(t + ' s', X(t), 8);
+    g.strokeStyle = css('--grid'); g.lineWidth = 1; g.beginPath(); g.moveTo(X(t), AXIS - 4); g.lineTo(X(t), h - 4); g.stroke();
+  }
+  // stretches the expectation does not explain
+  run.unexplained.forEach(u => { g.fillStyle = css('--warning'); g.globalAlpha = 0.28; g.fillRect(X(u[0]), AXIS - 6, Math.max(2, X(u[1]) - X(u[0])), h - AXIS + 2); g.globalAlpha = 1; });
+  // expected phases, numbered as in the side list
+  run.phases.forEach((p, k) => { if (p.t === null) return;
+    g.strokeStyle = css('--axis'); g.lineWidth = 1; g.beginPath(); g.moveTo(X(p.t), 16); g.lineTo(X(p.t), h - 4); g.stroke();
+    g.fillStyle = css('--ink2'); g.textAlign = 'left'; g.fillText(String(k + 1), X(p.t) + 3, 21); });
+  // rows
+  P.forEach((p, k) => {
+    const y = AXIS + k * ROW, live = on(bits, k);
+    g.textAlign = 'right'; g.font = (live ? '600 ' : '') + '12px system-ui, sans-serif';
+    g.fillStyle = live ? css('--ink') : css('--ink2'); g.fillText(p.name, GUTTER - 10, y + ROW / 2);
+    if (k && P[k - 1].group !== p.group) { g.strokeStyle = css('--axis'); g.lineWidth = 1; g.beginPath(); g.moveTo(8, y - 0.5); g.lineTo(w - 6, y - 0.5); g.stroke(); }
+    g.fillStyle = groupColor(p.group);
+    let s = -1;
+    for (let i = 0; i <= run.t.length; i++) {
+      const v = i < run.t.length && on(run.labels[i], k);
+      if (v && s < 0) s = i;
+      if (!v && s >= 0) { const xa = X(run.t[s]), xb = X(run.t[i - 1] + DATA.dt);
+        g.beginPath(); g.roundRect(xa, y + 5, Math.max(1.5, xb - xa), ROW - 10, 3); g.fill(); s = -1; }
+    }
+  });
+  // cursor
+  g.strokeStyle = css('--ink'); g.lineWidth = 1.5; g.beginPath(); g.moveTo(X(run.t[frame]), 14); g.lineTo(X(run.t[frame]), h - 2); g.stroke();
+}
+
+function frameAt(ev) {
+  const r = $('tl').getBoundingClientRect(), {t0, t1} = tlGeom(r.width);
+  const t = t0 + (ev.clientX - r.left - GUTTER) / (r.width - GUTTER - 10) * (t1 - t0);
+  const i = Math.max(0, Math.min(run.t.length - 1, Math.round((t - t0) / DATA.dt)));
+  const k = Math.floor((ev.clientY - r.top - AXIS) / ROW);
+  return [i, k];
+}
+function go(i) { frame = Math.max(0, Math.min(run.t.length - 1, i)); show(); }
+function nextChange(dir) {
+  let i = frame;
+  if (dir > 0) { i++; while (i < run.t.length - 1 && run.labels[i] === run.labels[i - 1]) i++; }
+  else { i--; while (i > 0 && run.labels[i] === run.labels[i - 1]) i--; }
+  go(i);
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; } $('bPlay').innerHTML = '&#9654;'; }
+function play() {
+  if (timer) return stop();
+  if (frame >= run.t.length - 1) frame = 0;
+  $('bPlay').innerHTML = '&#10074;&#10074;';
+  timer = setInterval(() => { if (frame >= run.t.length - 1) return stop(); go(frame + 1); }, 60);
+}
+
+sel.onchange = () => selectRun(+sel.value);
+$('slider').oninput = e => { stop(); go(+e.target.value); };
+$('bPrev').onclick = () => { stop(); go(frame - 1); };
+$('bNext').onclick = () => { stop(); go(frame + 1); };
+$('bPrevChange').onclick = () => { stop(); nextChange(-1); };
+$('bNextChange').onclick = () => { stop(); nextChange(1); };
+$('bPlay').onclick = play;
+let dragging = false;
+$('tl').onmousedown = e => { dragging = true; stop(); go(frameAt(e)[0]); };
+window.addEventListener('mouseup', () => dragging = false);
+$('tl').onmousemove = e => {
+  const [i, k] = frameAt(e), tip = $('tip');
+  if (dragging) go(i);
+  if (k < 0 || k >= P.length) { tip.style.display = 'none'; return; }
+  tip.textContent = `${run.t[i].toFixed(1)} s · ${P[k].name} is ${on(run.labels[i], k) ? 'true' : 'false'}`;
+  tip.style.display = 'block';
+  const wrap = $('tlWrap').getBoundingClientRect();
+  tip.style.left = Math.min(wrap.width - tip.offsetWidth - 6, e.clientX - wrap.left + 12) + 'px';
+  tip.style.top = (e.clientY - wrap.top - 28) + 'px';
+};
+$('tl').onmouseleave = () => $('tip').style.display = 'none';
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT') return;
+  if (e.key === 'ArrowRight') { stop(); e.shiftKey ? nextChange(1) : go(frame + 1); e.preventDefault(); }
+  if (e.key === 'ArrowLeft') { stop(); e.shiftKey ? nextChange(-1) : go(frame - 1); e.preventDefault(); }
+  if (e.key === ' ') { play(); e.preventDefault(); }
+});
+window.addEventListener('resize', () => show());
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { selectRun(+sel.value); });
+selectRun(0);
+</script>
+</body>
+</html>

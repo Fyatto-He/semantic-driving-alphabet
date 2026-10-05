@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <input>
+        <node-files value="map.nod.xml"/>
+        <edge-files value="map.edg.xml"/>
+    </input>
+    <processing>
+        <!-- U-turns are out of scope for the first wave; without this every approach also gets a U-turn link. -->
+        <no-turnarounds value="true"/>
+        <junctions.corner-detail value="5"/>
+    </processing>
+    <report>
+        <no-warnings value="true"/>
+    </report>
+</configuration>

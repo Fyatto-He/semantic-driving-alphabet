@@ -1,0 +1,4 @@
+# Python 3.10. Exact versions that were tested are in requirements.lock.txt.
+# On Windows, pybullet has no prebuilt wheel and is compiled by pip (needs MSVC Build Tools).
+smarts[sumo,envision,gymnasium]==2.0.1
+matplotlib>=3.8

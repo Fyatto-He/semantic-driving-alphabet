@@ -1,0 +1,29 @@
+# Every tunable number used by the labeling functions. Change values here, then re-run
+# `python -m semalpha.label`; no simulation is needed.
+
+# --- junction progress ---
+approach_horizon_m: 50.0     # approaching_junction: entry line is at most this far ahead
+entry_tolerance_m: 2.0       # at_entry_line: front bumper is at most this far before the line
+
+# --- ego motion ---
+stopped_speed: 0.1           # m/s; below this a car counts as stationary
+comfortable_decel: 3.0       # m/s^2; can_stop_before_entry assumes this braking
+
+# --- interaction ---
+conflict_half_width_m: 1.0   # half a car plus margin: two paths share an area where their centre lines are closer than twice this
+gap_margin_s: 2.0            # gap_safe: required time between one car leaving the shared area and the other reaching it
+gap_ego_accel: 2.0           # m/s^2; acceleration the ego is assumed to use when it goes
+gap_other_at_least_limit: false   # false: the other car keeps its current speed; true: a moving car is assumed to arrive no slower than its lane's speed limit
+others_stop_decel: 4.5       # m/s^2; others_can_yield assumes another car can brake this hard
+
+# --- reading another car's path from what is visible ---
+commit_lateral_m: 1.0        # a car inside a junction may be on a movement if it is this close to its centre line ...
+commit_heading_deg: 20.0     # ... and its heading is this close to the movement's direction
+
+# --- occupancy ---
+exit_space_m: 2.0            # exit_clear: free space needed beyond the junction, in addition to the ego's length
+exit_blocking_speed: 1.0     # m/s; a car in that space only blocks the exit if slower than this
+same_direction_deg: 60.0     # path_blocked ignores cars heading roughly along the ego's own path (cars ahead are not modelled yet)
+
+# --- terminal ---
+goal_tolerance_m: 3.0
