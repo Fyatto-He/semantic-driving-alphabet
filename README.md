@@ -1,7 +1,8 @@
-# Semantic alphabets for automata-guided driving
+# semantic-driving-alphabet
 
-A research prototype, built on the [SMARTS](https://github.com/huawei-noah/SMARTS) driving
-simulator, for finding and testing a small set of **semantic labels** that describe what
+**Semantic alphabets for automata-guided driving.** A research prototype, built on the
+[SMARTS](https://github.com/huawei-noah/SMARTS) driving simulator, for finding and testing
+a small set of **semantic labels** that describe what
 is going on at a road junction: `at_entry_line`, `stop_sign`, `ego_has_priority`,
 `gap_safe`, and so on.
 
@@ -85,8 +86,8 @@ folder.
 
 **Step 1. Get the code.**
 
-    git clone <repository-url> Multi_Agent_Auto_Drive
-    cd Multi_Agent_Auto_Drive
+    git clone https://github.com/Fyatto-He/semantic-driving-alphabet.git
+    cd semantic-driving-alphabet
 
 **Step 2. Create a Python environment inside the project.**
 
@@ -389,7 +390,7 @@ gives way to whom, with:
 ## 9. Project structure
 
 ```
-semalpha/                  the Python package (the name is a placeholder)
+semalpha/                  the Python package (short for "semantic alphabet")
   maps/<name>/             map sources: nodes, edges, netconvert options
   scenarios.py             catalog: scenarios, variants, staged cars, scripted drivers
   drivers.py               the scripted speed-only ego driver
