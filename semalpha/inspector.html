@@ -76,6 +76,8 @@
   #dfa .nlabel.cur { fill: var(--surface); font-weight: 700; }
   #dfa .nlabel.cur.bad, #dfa .nlabel.cur.good { fill: #ffffff; }
   #dfa .init { fill: var(--ink2); }
+  #dfa .nact { font-size: 10.5px; fill: var(--ink2); }
+  #dfa .nact.cur { fill: var(--surface); }
   #dfaInfo h3 { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 8px 0 3px; font-weight: 600; }
   #dfaInfo h3:first-child { margin-top: 0; }
   #dfaInfo ul { margin: 0; padding-left: 16px; }
@@ -333,6 +335,7 @@ function selectRun(i) {
   run = DATA.runs[i]; frame = 0; stop();
   $('slider').max = run.t.length - 1;
   $('story').textContent = run.story + (run.why_driver ? '  Driver: ' + run.why_driver : '');
+  pickAutomata();
   renderExpectation();
   show();
 }
@@ -355,6 +358,11 @@ function renderExpectation() {
   $('ruling').innerHTML = `Automata: ${sp.completed ? '✓ reached the destination' : '✗ did not reach the destination (got as far as: ' + sp.progress + ')'}`
     + ` &middot; rules broken: ${broken} &middot; halted: <b>${sp.waited.replace('_', ' ')}</b> &middot; idle while free: ${sp.idle.toFixed(1)} s`
     + ` &middot; ${sp.as_expected ? '✓ the verdict expected for this run' : '✗ expected: ' + sp.expected}`;
+  const m = run.measured;      // controller runs only: facts taken from positions and speeds, not from labels
+  if (m) $('ruling').innerHTML += `<br>Measured from positions: ${m.collided ? '<b>✗ collision</b>' : '✓ no collision'}`
+    + ` &middot; closest car: ${m.closest === null ? 'none on the map' : m.closest.toFixed(1) + ' m'}`
+    + ` &middot; took ${m.duration.toFixed(1)} s (the simulator's own driver in the same traffic: ${m.reference_duration.toFixed(1)} s)`
+    + ` &middot; ${m.cut_off.length ? '<b>✗ cut off: ' + m.cut_off.join(', ') + '</b>' : '✓ cut nobody off'}`;
   $('expView').hidden = editing; $('expEdit').hidden = !editing;
   if (editing) renderEditor();
   else {
@@ -632,7 +640,13 @@ function drawMap() {
 }
 
 // ---- live state diagram ------------------------------------------------------------------
-let focus = Math.max(0, A.findIndex(a => a.name === 'respect_right_of_way'));
+// The automata shown for the selected run: the controller that drove it, if one did, then the rule set.
+let AUT = A, SEQ = [], focus = 0, focusName = 'respect_right_of_way';
+function pickAutomata() {
+  AUT = run.controller ? [DATA.controllers[run.controller], ...A] : A;
+  SEQ = run.controller ? [run.ctrl, ...run.auto] : run.auto;
+  focus = run.controller ? 0 : Math.max(0, AUT.findIndex(a => a.name === focusName));
+}
 const pIndex = Object.fromEntries(P.map((p, k) => [p.name, k]));
 const spaced = s => s.replace(/_/g, ' ');
 const litText = lit => lit.startsWith('!') ? '¬' + lit.slice(1) : lit;
@@ -647,13 +661,15 @@ function wrapLiterals(cond, maxChars) {       // a condition -> lines, each a li
 }
 
 function drawDfa() {
-  const a = A[focus], seq = run.auto[focus], cur = seq[frame], bits = run.labels[frame], names = a.states;
+  const a = AUT[focus], seq = SEQ[focus], cur = seq[frame], bits = run.labels[frame], names = a.states;
+  const act = st => a.actions ? spaced(a.actions[st]) : '';      // what the car does in a state (controllers only)
   const isBad = s => a.bad.includes(s), isGood = s => a.good.includes(s);
 
   // tabs: every automaton with its state now; the selected one is drawn below
-  $('dfaTabs').innerHTML = A.map((b, k) => {
-    const s = b.states[run.auto[k][frame]];
+  $('dfaTabs').innerHTML = AUT.map((b, k) => {
+    const s = b.states[SEQ[k][frame]];
     const cls = b.bad.includes(s) ? 'bad' : b.good.includes(s) ? 'good' : '';
+    if (b.actions) return `<button class="${k === focus ? 'sel' : ''}" data-k="${k}" title="${b.rule}">controller: ${b.name}<span>${spaced(s)} → ${spaced(b.actions[s])}</span></button>`;
     return `<button class="${k === focus ? 'sel ' : ''}${cls}" data-k="${k}" title="${b.rule}">${b.name}<span>${cls === 'bad' ? '✗ ' : cls === 'good' ? '✓ ' : ''}${spaced(s)}</span></button>`;
   }).join('');
 
@@ -669,13 +685,20 @@ function drawDfa() {
     if (!groups.has(key)) groups.set(key, {from, to, conds: []});
     groups.get(key).conds.push(cond);
   }));
-  const edges = [...groups.values()];
+  const edges = [...groups.values()].filter(e => e.from !== e.to);   // "stay while ..." is listed beside the diagram, not drawn
   const main = names.filter(s => !isBad(s)), bad = names.filter(isBad);
-  const svg = $('dfa'), W = Math.max(440, svg.clientWidth || 640), NH = 30, LH = 12.5;
-  const nodeW = s => Math.max(62, s.length * 7.4 + 26);
+  const svg = $('dfa'), NH = a.actions ? 42 : 30, LH = 12.5;
+  const nodeW = s => Math.max(62, Math.max(s.length, a.actions ? act(s).length + 3 : 0) * 7.2 + 26);
+  const widths = main.reduce((sum, s) => sum + nodeW(s), 0);
+  const W = Math.max(440, svg.clientWidth || 640, widths + 52 + 30 * Math.max(1, main.length - 1));
+  // a label line is either plain text or a list of labels that must be on or off
   edges.forEach(e => {
     e.lines = [];
-    e.conds.forEach((c, k) => { if (k) e.lines.push(null); wrapLiterals(c, 30).forEach(l => e.lines.push(l)); });
+    if (e.conds.length > 2) e.lines.push({text: `any of ${e.conds.length} reasons`, any: true});
+    else e.conds.forEach((c, k) => {
+      if (k) e.lines.push({text: 'or'});
+      if (!c.trim()) e.lines.push({text: 'otherwise'}); else wrapLiterals(c, 30).forEach(l => e.lines.push({lits: l}));
+    });
     const i = main.indexOf(e.from), j = main.indexOf(e.to);
     e.kind = j < 0 ? 'down' : j > i ? 'fwd' : 'back';
     e.span = Math.abs(j - i);
@@ -695,9 +718,9 @@ function drawDfa() {
   const yMain = 14 + above + NH / 2;
   const yBad = yMain + NH + Math.max(below + 30, 104);
   const H = (bad.length ? yBad + NH / 2 : yMain + NH / 2 + below) + 14;
-  const xl = 36 + nodeW(main[0]) / 2, xr = W - 16 - nodeW(main[main.length - 1]) / 2;
-  const pos = {};
-  main.forEach((s, i) => pos[s] = [main.length === 1 ? W / 2 : xl + i * (xr - xl) / (main.length - 1), yMain]);
+  const pos = {}, spare = (W - 52 - widths) / Math.max(1, main.length - 1);
+  let left = 36;                                   // boxes side by side with equal gaps, whatever their widths
+  main.forEach(s => { pos[s] = [main.length === 1 ? W / 2 : left + nodeW(s) / 2, yMain]; left += nodeW(s) + spare; });
   bad.forEach((s, i) => pos[s] = [W / 2 + (i - (bad.length - 1) / 2) * 190, yBad]);
 
   const edgeClass = e => {
@@ -734,7 +757,9 @@ function drawDfa() {
     out.push(`<path class="edge ${c}" d="${d}" marker-end="url(#arr-${c})"/>`);
     const live = names.indexOf(e.from) === cur, y0 = up ? ly - (e.lines.length - 1) * LH : ly;
     labels.push(`<text class="elabel ${c}" text-anchor="${anchor}">` + e.lines.map((line, r) =>
-      `<tspan x="${lx}" y="${y0 + r * LH}">` + (line === null ? 'or' : line.map((lit, q) =>
+      `<tspan x="${lx}" y="${y0 + r * LH}">` + (line.text
+        ? `<tspan class="${live && line.any ? (e.conds.some(k => fits(bits, k)) ? 'yes' : 'no') : ''}">${line.text}</tspan>`
+        : line.lits.map((lit, q) =>
         (q ? ' ∧ ' : '') + `<tspan class="${live ? (litHolds(lit, bits) ? 'yes' : 'no') : ''}">${litText(lit)}</tspan>`).join('')) + `</tspan>`).join('') + `</text>`);
   });
   const [ix, iy] = pos[names[0]], iw = nodeW(names[0]);
@@ -743,24 +768,36 @@ function drawDfa() {
     const [x, y] = pos[s], w = nodeW(s);
     const c = (k === cur ? 'cur ' : visited.has(k) ? 'seen ' : '') + (isBad(s) ? 'bad' : isGood(s) ? 'good' : '');
     out.push(`<rect class="node ${c}" x="${x - w / 2}" y="${y - NH / 2}" width="${w}" height="${NH}" rx="${isBad(s) || isGood(s) ? 15 : 7}"/>`
-           + `<text class="nlabel ${c}" x="${x}" y="${y + 4}" text-anchor="middle">${spaced(s)}</text>`);
+           + `<text class="nlabel ${c}" x="${x}" y="${y + (a.actions ? -3 : 4)}" text-anchor="middle">${spaced(s)}</text>`
+           + (a.actions ? `<text class="nact ${c}" x="${x}" y="${y + 13}" text-anchor="middle">→ ${act(s)}</text>` : ''));
   });
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.style.height = H + 'px';
+  // a diagram wider than the page is scaled down to fit
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.style.height = H * Math.min(1, (svg.clientWidth || W) / W) + 'px';
   svg.innerHTML = out.join('') + labels.join('');
 
   // beside the diagram: the rule, the path so far, and what each way out is waiting for
   const moves = a.transitions[names[cur]] || [];
-  const ways = moves.length ? moves.map(([cond, to]) => `<li>&rarr; <b>${spaced(to)}</b> when ` + cond.split(' ').map(lit => {
-      const ok = litHolds(lit, bits);
-      return `<span class="${ok ? 'yes' : 'no'}">${litText(lit)} ${ok ? '✓' : '✗'}</span>`; }).join(' and ') + `</li>`).join('')
+  const first = moves.findIndex(([cond]) => fits(bits, cond));    // transitions are tried in order: this one applies
+  const ways = moves.length ? moves.map(([cond, to], k) => `<li>&rarr; <b>${to === names[cur] ? 'stays here' : spaced(to)}</b> `
+      + (cond.trim() ? 'when ' + cond.split(' ').map(lit => {
+          const ok = litHolds(lit, bits);
+          return `<span class="${ok ? 'yes' : 'no'}">${litText(lit)} ${ok ? '✓' : '✗'}</span>`; }).join(' and ') : 'otherwise')
+      + (k === first ? ' <b>◀ applies now</b>' : '') + `</li>`).join('')
     : `<li class="muted">Nothing leaves this state.</li>`;
   const path = [[0, null]].concat(taken.map(x => [x[1], x[2]]));
   $('dfaInfo').innerHTML = `<h3>${a.name} (${a.kind})</h3><div>${a.rule}</div>`
+    + (a.actions ? `<h3>What the car is doing</h3><div><b>${act(names[cur])}</b>, because the controller is in &ldquo;${spaced(names[cur])}&rdquo;</div>` : '')
     + `<h3>Path so far</h3><div id="dfaPath">` + path.map(([k, t]) =>
         `<a data-t="${t === null ? run.t[0] : t}">${spaced(names[k])} <small>${t === null ? 'start' : t.toFixed(1) + ' s'}</small></a>`).join(' &rarr; ') + `</div>`
     + `<h3>From &ldquo;${spaced(names[cur])}&rdquo;, now</h3><ul>${ways}</ul>`;
 }
-$('dfaTabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { focus = +b.dataset.k; show(); } });
+$('dfaTabs').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  focus = +b.dataset.k;
+  if (!AUT[focus].actions) focusName = AUT[focus].name;     // remembered for the next run
+  show();
+});
 $('dfaInfo').addEventListener('click', e => { const l = e.target.closest('a[data-t]'); if (l) { stop(); go(run.t.indexOf(+l.dataset.t)); } });
 
 const GUTTER = 168, ROW = 19, AXIS = 30, AGAP = 26, AROW = 22;
@@ -768,7 +805,7 @@ const autoTop = () => AXIS + P.length * ROW + AGAP;   // where the automaton row
 function tlGeom(w) { const t0 = run.t[0], t1 = run.t[run.t.length - 1] + DATA.dt; return {t0, t1, X: t => GUTTER + (t - t0) / (t1 - t0) * (w - GUTTER - 10)}; }
 
 function drawTimeline() {
-  const [g, w, h] = prep($('tl'), autoTop() + A.length * AROW + 6);
+  const [g, w, h] = prep($('tl'), autoTop() + AUT.length * AROW + 6);
   const {t0, t1, X} = tlGeom(w), bits = run.labels[frame];
   g.textBaseline = 'middle';
   // time axis
@@ -810,8 +847,8 @@ function drawTimeline() {
   g.font = '11px system-ui, sans-serif'; g.textAlign = 'left'; g.fillStyle = css('--muted');
   g.fillText('AUTOMATA: STATE OVER TIME', 10, top - AGAP / 2 + 2);
   g.strokeStyle = css('--axis'); g.lineWidth = 1; g.beginPath(); g.moveTo(8, top - AGAP + 4.5); g.lineTo(w - 6, top - AGAP + 4.5); g.stroke();
-  A.forEach((a, k) => {
-    const y = top + k * AROW, seq = run.auto[k], now = a.states[seq[frame]];
+  AUT.forEach((a, k) => {
+    const y = top + k * AROW, seq = SEQ[k], now = a.states[seq[frame]];
     const nowBad = a.bad.includes(now);
     g.textAlign = 'right'; g.font = '12px system-ui, sans-serif';
     g.fillStyle = nowBad ? css('--critical') : css('--ink2'); g.fillText(a.name, GUTTER - 10, y + AROW / 2);
@@ -820,7 +857,8 @@ function drawTimeline() {
       if (i < seq.length && seq[i] === seq[s]) continue;
       const name = a.states[seq[s]], xa = X(run.t[s]), xb = X(run.t[i - 1] + DATA.dt), wd = Math.max(1.5, xb - xa - 1);
       const bad = a.bad.includes(name), good = a.good.includes(name);
-      g.fillStyle = bad ? css('--critical') : good ? css('--good') : css('--grid');
+      const holding = a.actions && a.actions[name] !== 'go';      // on a controller's band, holding stands out from going
+      g.fillStyle = bad ? css('--critical') : good ? css('--good') : holding ? css('--axis') : css('--grid');
       g.beginPath(); g.roundRect(xa, y + 3, wd, AROW - 6, 3); g.fill();
       if (!bad && !good) { g.strokeStyle = css('--axis'); g.lineWidth = 1; g.stroke(); }
       const text = name.replace(/_/g, ' ');
@@ -905,9 +943,12 @@ $('tl').onmousemove = e => {
   }
   $('tl').style.cursor = markerAt(e) >= 0 ? 'ew-resize' : 'crosshair';
   if (dragging) go(i);
-  if (k < 0 || k >= P.length + A.length) { tip.style.display = 'none'; return; }
+  if (k < 0 || k >= P.length + AUT.length) { tip.style.display = 'none'; return; }
   if (k < P.length) tip.textContent = `${run.t[i].toFixed(1)} s · ${P[k].name} is ${on(run.labels[i], k) ? 'true' : 'false'}`;
-  else { const a = A[k - P.length]; tip.textContent = `${run.t[i].toFixed(1)} s · ${a.name} is in state "${a.states[run.auto[k - P.length][i]].replace(/_/g, ' ')}"`; }
+  else {
+    const a = AUT[k - P.length], st = a.states[SEQ[k - P.length][i]];
+    tip.textContent = `${run.t[i].toFixed(1)} s · ${a.name} is in state "${spaced(st)}"` + (a.actions ? `: the car is told to ${spaced(a.actions[st])}` : '');
+  }
   tip.style.display = 'block';
   const wrap = $('tlWrap').getBoundingClientRect();
   tip.style.left = Math.min(wrap.width - tip.offsetWidth - 6, e.clientX - wrap.left + 12) + 'px';

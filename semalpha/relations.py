@@ -204,6 +204,15 @@ class View:
         return bool(starts) and self.front < min(starts)
 
     @property
+    def dist_to_shared(self) -> Optional[float]:
+        """Front bumper to the first road shared with a movement that may currently move.
+        Negative once on it; None if the ego's path through this junction shares no such road."""
+        if self.region is None:
+            return None
+        starts = [s for link, s in self.region.meets if self.signal(link) != "STOP"]
+        return min(starts) - self.front if starts else None
+
+    @property
     def can_stop_before_entry(self) -> bool:        # R13
         return (self.region is not None and not self.inside
                 and stopping_distance(self.ego.speed, self.th.comfortable_decel) <= self.dist_to_entry)

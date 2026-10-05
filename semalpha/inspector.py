@@ -21,14 +21,16 @@ from pathlib import Path
 from semalpha import OUTPUTS, expected
 from semalpha.expected import EXPECTED, EXPECTED_VERDICT
 from semalpha.helpers import Polyline, load_thresholds
-from semalpha.label import Trace, compare, run_file
+from semalpha.controllers import CONTROLLERS
+from semalpha.drive import measured, random_file, summary_file
+from semalpha.label import Trace, compare, drivers_of, run_file
 from semalpha.mapinfo import MapInfo
 from semalpha.predicates import GROUP, PROPOSITIONS
 from semalpha.record import Run
 from semalpha.relations import Scene
 from semalpha.rules import AUTOMATA, RULES, where_it_waited
 from semalpha.scenarios import SCENARIOS
-from semalpha.verify import judge, same
+from semalpha.verify import expected_of, judge, same
 
 NAMES = list(PROPOSITIONS)
 
@@ -66,9 +68,10 @@ def _why(view) -> list:
     return lines
 
 
-def _run_payload(scenario, variant, driver, thresholds):
+def _run_payload(run: Run, map_name: str, why_driver: str, thresholds, group: str = "",
+                 reference: Run = None):
     """Everything about one run that does not depend on its expectation."""
-    run = Run.load(run_file(scenario.name, variant.name, driver))
+    driver = run.driver
     mapinfo = MapInfo(run.net_path)
     scene = Scene(mapinfo, run.ego_route, thresholds, run.ego_end)
     cars, frames, ego_rows, why, labels = [], [], [], [], []
@@ -98,12 +101,13 @@ def _run_payload(scenario, variant, driver, thresholds):
     ex, ey = path.point_at(region.entry_s)
     heading = scene.route.heading_at(region.entry_s)
     nx, ny = -math.sin(heading), math.cos(heading)
-    script = variant.scripts.get(driver)
+    controller = CONTROLLERS.get(driver)
     payload = {
-        "key": f"{scenario.name}/{variant.name}/{driver}",
-        "scenario": scenario.name, "variant": variant.name, "driver": driver, "map": scenario.map,
-        "story": variant.story,
-        "why_driver": script.why if script else "the simulator's rule-following driver.",
+        "key": f"{run.scenario}/{run.variant}/{driver}",
+        # `scenario` is the heading the run is listed under in the page
+        "scenario": group or run.scenario, "variant": run.variant, "driver": driver, "map": map_name,
+        "story": run.story,
+        "why_driver": why_driver,
         "window": [_r(cx - half), _r(cy - half), _r(cx + half), _r(cy + half)],
         "route": [[_r(x), _r(y)] for x, y in path.line.coords],
         "entry_line": [[_r(ex - 1.9 * nx), _r(ey - 1.9 * ny)], [_r(ex + 1.9 * nx), _r(ey + 1.9 * ny)]],
@@ -123,7 +127,24 @@ def _run_payload(scenario, variant, driver, thresholds):
             "idle": _r(judgement.idle_while_free_s, 1),
         },
     }
+    if controller:      # the state the controller was in at every frame, as recorded while it drove
+        states, seq, last = controller.automaton.states, [], controller.automaton.initial
+        for frame in run.frames:
+            last = frame.mode or last
+            seq.append(states.index(last))
+        payload["controller"], payload["ctrl"] = driver, seq
+        if reference is not None:
+            payload["measured"] = measured(run, reference, thresholds)
     return payload, trace, judgement
+
+
+def _automaton_payload(a, actions=None) -> dict:
+    out = {"name": a.name, "kind": a.kind, "rule": a.rule, "states": a.states,
+           "good": list(a.good), "bad": list(a.bad),
+           "transitions": {s: [list(m) for m in moves] for s, moves in a.transitions.items()}}
+    if actions:
+        out["actions"] = actions
+    return out
 
 
 @functools.lru_cache(maxsize=1)
@@ -136,23 +157,53 @@ def _recorded():
         "groups": groups,
         "props": [{"name": n, "group": GROUP[n],
                    "doc": " ".join((PROPOSITIONS[n].__doc__ or n.replace("_", " ")).split())} for n in NAMES],
-        "automata": [{"name": a.name, "kind": a.kind, "rule": a.rule, "states": a.states,
-                      "good": list(a.good), "bad": list(a.bad),
-                      "transitions": {s: [list(m) for m in moves] for s, moves in a.transitions.items()}}
-                     for a in AUTOMATA],
+        "automata": [_automaton_payload(a) for a in AUTOMATA],
+        "controllers": {c.name: _automaton_payload(c.automaton, c.actions) for c in CONTROLLERS.values()},
         "rules": [r.name for r in RULES],
         "halts": where_it_waited.states,
         "maps": {},
     }
     runs = []
+
+    def add(run: Run, map_name: str, why: str, group: str = "", reference: Path = None):
+        key = (run.scenario, run.variant, run.driver)
+        if any(key == r[0] for r in runs):      # the reference run of a draw that two controllers got wrong
+            return
+        ref = Run.load(reference) if reference is not None and reference.exists() else None
+        runs.append((key, *_run_payload(run, map_name, why, thresholds, group, ref)))
+        if map_name not in data["maps"]:
+            data["maps"][map_name] = _map_payload(MapInfo(run.net_path))
+
+    def why_of(driver: str, scripts=()) -> str:
+        if driver in scripts:
+            return scripts[driver].why
+        if driver in CONTROLLERS:
+            return f"the controller automaton {driver}, deciding from the labels alone."
+        return "the simulator's rule-following driver."
+
     for scenario in SCENARIOS.values():
         for variant in scenario.variants:
-            for driver in ["sumo", *variant.scripts]:
-                runs.append(((scenario.name, variant.name, driver),
-                             *_run_payload(scenario, variant, driver, thresholds)))
-                if scenario.map not in data["maps"]:
-                    run = Run.load(run_file(scenario.name, variant.name, driver))
-                    data["maps"][scenario.map] = _map_payload(MapInfo(run.net_path))
+            for driver in drivers_of(scenario, variant):
+                add(Run.load(run_file(scenario.name, variant.name, driver)), scenario.map,
+                    why_of(driver, variant.scripts),
+                    reference=run_file(scenario.name, variant.name, "sumo") if driver in CONTROLLERS else None)
+    # random-traffic draws in which a controller failed, collided or cut another car off,
+    # each next to the simulator's own driver in the same traffic
+    for controller in CONTROLLERS.values():
+        for kind in ("random", "random_with_leaders"):
+            summary = summary_file(controller, kind)
+            if not summary.exists():
+                continue
+            for r in json.loads(summary.read_text(encoding="utf-8")):
+                if r["passed"] and not r["collided"] and not r["cut_off"]:
+                    continue
+                reference = random_file(r["scenario"], r["variant"], "sumo")
+                for driver in (controller.name, "sumo"):
+                    file = random_file(r["scenario"], r["variant"], driver)
+                    if file.exists():
+                        add(Run.load(file), SCENARIOS[r["scenario"]].map, why_of(driver),
+                            f"{r['scenario']}: random traffic that went wrong",
+                            reference=reference if driver in CONTROLLERS else None)
     return data, runs
 
 
@@ -165,7 +216,9 @@ def render() -> str:
     runs = []
     for key, payload, trace, judgement in recorded:
         entry = saved.get("/".join(key), {})
-        verdict = entry.get("verdict", {})
+        wanted = expected_of(key, judgement)     # for a controller nobody described: get through, break nothing
+        verdict = entry.get("verdict") or {"completed": wanted.completed, "violations": list(wanted.violations),
+                                           "waited": wanted.waited}
         match = compare(trace, EXPECTED[key], tolerance)
         runs.append({
             **payload,
@@ -182,7 +235,7 @@ def render() -> str:
             "py": {"verdict": match.verdict, "reached": match.reached,
                    "unexplained_s": _r(match.unexplained_s, 1), "forbidden": len(match.violations),
                    "timing": len(match.timing),
-                   "as_expected": same(judgement.verdict, EXPECTED_VERDICT[key])},
+                   "as_expected": same(judgement.verdict, wanted)},
         })
     full = {**data, "runs": runs, "stamp": expected.stamp(saved), "tolerance": tolerance}
     template = Path(__file__).with_name("inspector.html").read_text(encoding="utf-8")

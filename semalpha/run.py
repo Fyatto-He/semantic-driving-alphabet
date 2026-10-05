@@ -3,6 +3,7 @@
     python -m semalpha.run                         # every scenario, variant and driver
     python -m semalpha.run t_stop_left             # one scenario
     python -m semalpha.run t_stop_left wait_for_gap sumo
+    python -m semalpha.run t_stop_left wait_for_gap dfa_v1     # driven by a controller automaton
 
 Each run is saved to outputs/runs/<scenario>/<variant>__<driver>.json and summarised in
 one line of raw facts (no semantic labels) so the staging can be checked.
@@ -17,10 +18,14 @@ from pathlib import Path
 from typing import Optional
 
 from semalpha import EGO, OUTPUTS, ROOT
-from semalpha.build import EGO_END, build_scenario
-from semalpha.drivers import SUMO, ScriptedDriver
+from semalpha.build import EGO_END, build_map, build_scenario
+from semalpha.controllers import CONTROLLERS, Executor
+from semalpha.drivers import SUMO, Script, ScriptedDriver
+from semalpha.helpers import load_thresholds
 from semalpha.mapinfo import MapInfo
+from semalpha.predicates import PROPOSITIONS
 from semalpha.record import Frame, Run, Vehicle
+from semalpha.relations import Scene
 from semalpha.scenarios import SCENARIOS, Scenario, Variant
 
 MAX_STEPS = 1200   # 120 s
@@ -54,12 +59,17 @@ def _snapshot(smarts, obs, action) -> Frame:
                  events=events, action=action)
 
 
-def run(scenario: Scenario, variant: Variant, driver: str = SUMO, envision: bool = False) -> Run:
+def run(scenario: Scenario, variant: Variant, driver: str = SUMO, envision: bool = False,
+        thresholds=None) -> Run:
     import gymnasium as gym
     from smarts.core.agent_interface import AgentInterface, DoneCriteria
     from smarts.core.controllers.action_space_type import ActionSpaceType
 
-    script = None if driver == SUMO else variant.scripts[driver]
+    controller = CONTROLLERS.get(driver)
+    script = None if driver == SUMO or controller else variant.scripts[driver]
+    if controller:      # built like a scripted run: the ego is an agent, here with nothing scripted
+        net = MapInfo(build_map(scenario.map))
+        script = Script(controller.idea, cruise=Executor(net, net.route_path(scenario.ego_route)).entry_speed())
     scenario_dir = build_scenario(scenario, variant, script)
     mapinfo = MapInfo(scenario_dir / "map.net.xml")
     path = mapinfo.route_path(scenario.ego_route)
@@ -88,17 +98,27 @@ def run(scenario: Scenario, variant: Variant, driver: str = SUMO, envision: bool
     try:
         obs, _ = env.reset()
         smarts = env.unwrapped.smarts
-        scripted = ScriptedDriver(mapinfo, path, script) if script is not None else None
+        scripted = ScriptedDriver(mapinfo, path, script) if (script is not None and not controller) else None
+        if controller:   # the closed loop: state of the world -> labels -> automaton -> action -> speed
+            scene = Scene(mapinfo, scenario.ego_route, thresholds or load_thresholds(), EGO_END)
+            executor = Executor(mapinfo, path)
+            state = controller.automaton.initial
         for _ in range(MAX_STEPS):
             ego_obs = obs.get(EGO)
             action = scripted.act(ego_obs) if (scripted and ego_obs is not None) else None
             frame = _snapshot(smarts, ego_obs, action[0] if action else None)
+            if controller and ego_obs is not None and EGO in frame.vehicles:
+                view = scene.view(frame)
+                labels = frozenset(name for name, holds in PROPOSITIONS.items() if holds(view))
+                state = controller.automaton.step(state, labels)
+                action = (executor.speed(view, controller.actions[state]), 0)
+                frame.action, frame.mode = action[0], state
             if EGO in frame.vehicles:
                 result.frames.append(frame)
             elif result.frames:
                 break   # the ego has left the map
             obs, _, terminated, truncated, _ = env.step({EGO: action} if action else {})
-            if scripted and (terminated.get(EGO) or truncated.get(EGO)):
+            if interfaces and (terminated.get(EGO) or truncated.get(EGO)):
                 result.frames.append(_snapshot(smarts, obs.get(EGO), None))
                 break
     finally:

@@ -184,6 +184,15 @@ def run_file(scenario: str, variant: str, driver: str) -> Path:
     return OUTPUTS / "runs" / scenario / f"{variant}__{driver}.json"
 
 
+def drivers_of(scenario, variant) -> List[str]:
+    """Drivers of a variant: the reference driver, its scripted drivers, and every
+    controller automaton that has been run on it."""
+    from semalpha.controllers import CONTROLLERS
+
+    return ["sumo", *variant.scripts,
+            *(c for c in CONTROLLERS if run_file(scenario.name, variant.name, c).exists())]
+
+
 def usage_stats(traces: List[Trace], blip_s: float = 0.3) -> str:
     """Per proposition, over all runs: share of time true, number of value changes, and
     'blips' (stretches of at most `blip_s` between two changes). A proposition that never
@@ -220,19 +229,22 @@ def main(argv) -> int:
             overridden = True
         elif not a.startswith("--"):
             args.append(a)
+    from semalpha.controllers import CONTROLLERS
+
     counts: Dict[str, int] = {}
-    traces: List[Trace] = []
+    traces: List[Trace] = []        # of the catalog's runs: reference and scripted drivers
     for scenario in SCENARIOS.values():
         if args and scenario.name != args[0]:
             continue
         for variant in scenario.variants:
             if len(args) > 1 and variant.name != args[1]:
                 continue
-            for driver in ["sumo", *variant.scripts]:
+            for driver in drivers_of(scenario, variant):
                 if len(args) > 2 and driver != args[2]:
                     continue
                 trace = label_run(Run.load(run_file(scenario.name, variant.name, driver)), thresholds)
-                traces.append(trace)
+                if driver not in CONTROLLERS:
+                    traces.append(trace)
                 expectation = EXPECTED[(scenario.name, variant.name, driver)]
                 match = compare(trace, expectation, thresholds.phase_time_tolerance_s)
                 counts[match.verdict] = counts.get(match.verdict, 0) + 1
@@ -255,7 +267,8 @@ def main(argv) -> int:
                     print(body + "\n")
     print("\n" + ", ".join(f"{n} {v}" for v, n in sorted(counts.items())))
     if "--stats" in argv:
-        print("\n" + usage_stats(traces))
+        print(f"\nover the {len(traces)} runs by the reference and scripted drivers:")
+        print(usage_stats(traces))
     return 0
 
 

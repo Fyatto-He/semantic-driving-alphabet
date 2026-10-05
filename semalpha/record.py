@@ -29,7 +29,8 @@ class Frame:
     vehicles: Dict[str, Vehicle]          # every vehicle in the world, including the ego
     signals: Dict[str, str]               # signal actor id -> GO | CAUTION | STOP | UNKNOWN
     events: Optional[List[str]] = None    # SMARTS events for the ego (agent-driven runs only)
-    action: Optional[float] = None        # target speed commanded at this state (scripted runs only)
+    action: Optional[float] = None        # target speed commanded at this state (agent-driven runs only)
+    mode: Optional[str] = None            # state of the controller automaton at this frame (controller runs only)
 
 
 @dataclass
@@ -69,6 +70,7 @@ class Run:
                 signals=f["signals"],
                 events=f.get("events"),
                 action=f.get("action"),
+                mode=f.get("mode"),
             )
             for f in data.pop("frames")
         ]

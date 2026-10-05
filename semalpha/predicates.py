@@ -93,6 +93,18 @@ def gap_safe(v: View) -> bool:
 
 
 @proposition("interaction")
+def priority_gap_safe(v: View) -> bool:
+    """Going now, the ego would be clear, by the time margin, of every car that outranks it
+    (true when there is none).
+
+    Added after letting an automaton drive (docs/design_log.md). `ego_has_priority` and
+    `gap_safe` each speak about all cars at once, so "not ego_has_priority and not gap_safe"
+    also holds when one car outranks the ego from far away and a different car, which owes
+    the ego priority, is close. This label keeps both facts about the same car."""
+    return all(v.gap_safe(c) for c in v.conflicts if not v.has_priority(c))
+
+
+@proposition("interaction")
 def others_can_yield(v: View) -> bool:
     """Every car that owes the ego priority, whichever way it may be going, can still stop
     short of the ego's path (true when there is none)."""

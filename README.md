@@ -10,14 +10,19 @@ The labels are meant to become the alphabet of an automaton (DFA / reward machin
 guides a driving policy. The alphabet describes the world; the automaton and the policy
 decide what to do. This repository covers the first part: choosing the labels and
 checking, frame by frame, that they change when a human driver's reasoning would change.
+It also tests how far the labels carry: small automata judge recorded runs, and a
+hand-written automaton can be put in charge of the car.
 
-**Status (2026-10-05).** Four junction scenarios, 26 recorded runs, 19 labels, a first set
-of rule automata, and a frame-by-frame inspector work end to end. The label sequences
-agree with the hand-written expectations in 23 of 26 runs, and one general set of eight
-small automata gives the expected verdict on all 26. No policy is trained.
+**Status (2026-10-05).** Four junction scenarios, 26 recorded runs, 20 labels, a set of
+rule automata, and a frame-by-frame inspector work end to end. The label sequences agree with the hand-written expectations in 23 of 26 runs,
+and one general set of eight small automata gives the expected verdict on all 26. A
+hand-written automaton that reads only the labels drives all 17 staged variants and 40 of
+40 draws of random traffic without a collision or a broken rule. It needed one new label
+to get there, and it runs into a car queued ahead of it, which no label describes; see
+[section 8](#8-controller-automata). No policy is trained.
 
 To look at results without installing anything, open
-[docs/inspector.html](docs/inspector.html) in a browser (a snapshot of all 26 runs).
+[docs/inspector.html](docs/inspector.html) in a browser (a snapshot of the recorded runs).
 
 ## Contents
 
@@ -28,11 +33,12 @@ To look at results without installing anything, open
 5. [Looking at the results](#5-looking-at-the-results)
 6. [The labels](#6-the-labels)
 7. [The rule automata](#7-the-rule-automata)
-8. [Scenarios and drivers](#8-scenarios-and-drivers)
-9. [Changing things](#9-changing-things)
-10. [Project structure](#10-project-structure)
-11. [Known limits](#11-known-limits)
-12. [Further reading](#12-further-reading)
+8. [Controller automata](#8-controller-automata)
+9. [Scenarios and drivers](#9-scenarios-and-drivers)
+10. [Changing things](#10-changing-things)
+11. [Project structure](#11-project-structure)
+12. [Known limits](#12-known-limits)
+13. [Further reading](#13-further-reading)
 
 ## 1. How it works
 
@@ -43,7 +49,7 @@ To look at results without installing anything, open
  1. SIMULATE      SMARTS + SUMO drive each scenario once          -> outputs/runs/*.json
           |       (one raw snapshot of the world per 0.1 s)
           v
- 2. LABEL         19 labeling functions run on every snapshot     -> outputs/traces/*.txt
+ 2. LABEL         20 labeling functions run on every snapshot     -> outputs/traces/*.txt
           |       and the result is compared with the expected
           |       label sequence written by hand for that run
           v
@@ -52,6 +58,9 @@ To look at results without installing anything, open
           |       rules it broke
           v
  4. INSPECT       one web page to step through any run            -> outputs/inspector.html
+
+ 5. DRIVE         (optional) an automaton reads the labels live   -> docs/controller.md
+                  and drives the ego; its runs go through 2 to 4
 ```
 
 Three ideas hold it together:
@@ -70,6 +79,9 @@ Three ideas hold it together:
   on or off. They were written before the labeling code, so comparing the two is a test of
   the labels and not a description of them. Expectations are edited in the inspector page
   itself (section 5), not in code.
+
+Step 5 is the exception to "simulate once": there the labels are computed while the
+simulator runs, because the car's next move depends on them.
 
 Nothing here learns. There is no reinforcement learning and no trained policy yet.
 
@@ -175,7 +187,7 @@ Repeat this step only after changing a map, a scenario or a driver. To simulate 
 
     .venv\Scripts\python -m semalpha.label
 
-Computes all 19 labels for every frame of every recorded run, writes each label sequence
+Computes all 20 labels for every frame of every recorded run, writes each label sequence
 to `outputs/traces/<scenario>/<variant>__<driver>.txt`, and prints one verdict per run:
 
     match    t_stop_left     wait_for_gap          sumo                milestones 6/6
@@ -237,6 +249,33 @@ being saved into the project.
 To refresh the snapshot that is kept in the repository:
 
     .venv\Scripts\python -m semalpha.inspector docs\inspector.html
+
+### Step 5 (optional): let an automaton drive (about 10 minutes)
+
+    .venv\Scripts\python -m semalpha.drive dfa_v3
+
+Puts the controller automaton `dfa_v3` (section 8) in charge of the ego on every staged
+variant, records the runs next to the others, and prints one line per run:
+
+    PASS roundabout      yield_to_circulating   reached the destination | rules broken: none | halted: at_line | took 26.1s (reference 24.3s) | closest 7.8 m
+    ...
+    dfa_v3 on the staged variants: 17 of 17 passed (reached the destination, no rule broken); 0 collisions; 0 flagged for cutting another car off
+
+"Reference" is the time SUMO's own driver took in the same traffic. Eight random draws
+per scenario take about as long again.
+
+    .venv\Scripts\python -m semalpha.drive dfa_v3 roundabout              # one scenario
+    .venv\Scripts\python -m semalpha.drive dfa_v3 --random 8              # 8 draws of random traffic per scenario
+    .venv\Scripts\python -m semalpha.drive dfa_v3 --random 8 --with-leaders   # ... some with a car ahead in the ego's lane
+    .venv\Scripts\python -m semalpha.drive dfa_v3 --judge                 # no simulation: judge the runs already recorded
+    .venv\Scripts\python -m semalpha.drive dfa_v3 --set gap_margin_s=3    # drive with a different label threshold
+    .venv\Scripts\python -m semalpha.drive --judge --docs                 # regenerate docs/controller.md
+
+Random draws are reproducible: draw 3 of a scenario is the same traffic every time. Runs
+made with `--set` are kept under `outputs/trials/` and never replace the recorded ones.
+After driving, run steps 2 to 4 again to see the new runs in the inspector. Controller
+runs appear there with the controller's own state diagram, and so do the random draws that
+failed.
 
 ### Optional: figures
 
@@ -361,7 +400,7 @@ Envision shows the cars but not the labels.
 ## 6. The labels
 
 Each label is one short function in `semalpha/predicates.py`. For every frame the labeler
-builds a `View` of that frame (`semalpha/relations.py`) and calls all 19 functions on it.
+builds a `View` of that frame (`semalpha/relations.py`) and calls all 20 functions on it.
 
 | Group | Label | True when |
 |---|---|---|
@@ -374,12 +413,18 @@ builds a `View` of that frame (`semalpha/relations.py`) and calls all 19 functio
 | Interaction | `conflict_present` | some car's possible path meets the ego's remaining path, and neither has passed that place |
 | | `ego_has_priority` | the rules give the ego right of way over every such car |
 | | `gap_safe` | going now, the ego and every such car would use the shared road at least 2 s apart |
+| | `priority_gap_safe` | the same, but only for the cars that outrank the ego |
 | | `others_can_yield` | every car that owes the ego priority can still stop short of the ego's path |
 | Occupancy | `path_blocked` | a car is physically on the ego's path inside the junction |
 | | `exit_clear` | there is room beyond the junction for the ego to leave it completely |
 | Ego motion | `ego_stopped` | the ego's speed is below 0.1 m/s |
 | | `can_stop_before_entry` | braking at 3 m/s², the ego can still halt before the entry line |
 | Terminal | `collision`, `off_road`, `goal_reached` | simulator event, or the geometric equivalent |
+
+`priority_gap_safe` was added after an automaton first drove (section 8). It exists
+because `ego_has_priority` and `gap_safe` each speak about every car at once: "no priority
+and gap not safe" is also true when one car outranks the ego from far away and a different
+car is close. `priority_gap_safe` keeps both facts about the same car.
 
 Three rules shape them:
 
@@ -396,7 +441,7 @@ The code is layered so that the labels themselves stay short:
 |---|---|---|
 | 1. Helpers | `helpers.py`, `mapinfo.py` | distances, travel times, vehicle outlines, lane geometry, the map's right-of-way table |
 | 2. Relations | `relations.py` | facts about the ego and one junction or one other car, e.g. "this car's possible path meets mine", "I outrank it", "the gap to it is safe" |
-| 3. Labels | `predicates.py` | the 19 true/false facts, mostly one line each, built from layer 2 |
+| 3. Labels | `predicates.py` | the 20 true/false facts, mostly one line each, built from layer 2 |
 
 Example: `gap_safe` is `all(v.gap_safe(c) for c in v.conflicts)`. Layer 2 finds the
 conflicts (which cars, which of their possible paths, where the paths meet) and judges
@@ -435,7 +480,62 @@ one.
 State diagrams, the full verdict table, and what the result does and does not show are in
 [docs/automata.md](docs/automata.md).
 
-## 8. Scenarios and drivers
+## 8. Controller automata
+
+The rule automata watch. A **controller automaton** is in charge: it reads the same labels
+live, each of its states carries an action, and the action of the state it is in is what
+the car does. Nothing else decides. This tests whether the labels are enough to drive on,
+not only to judge with.
+
+| Action | The car |
+|---|---|
+| `go` | follows its route at cruising speed, slowing for the turn |
+| `hold_at_line` | comes to a halt at the junction's entry line |
+| `hold_inside` | already inside: halts short of any road it shares with others |
+| `stop` | brakes to a halt where it is |
+
+Turning an action into a speed is done by a fixed piece of code, the executor
+(`semalpha/controllers.py`). It knows the shape of the ego's own route and nothing about
+traffic, signs or signals, so every such decision has to come from the labels.
+
+Three controllers are included (`semalpha/controllers.py`):
+
+| Controller | Idea | Staged variants (17) | Random traffic (40 draws) |
+|---|---|---|---|
+| `dfa_v1` | hold at the line for a red or stoppable yellow, for a car that outranks the ego and is too close, for a blocked path or exit; otherwise go; keep checking until past the point of no return | 17 pass | 39 pass, no collision |
+| `dfa_v2` | as `dfa_v1`, but wait for three clear frames, then commit at the line | 17 pass | 36 pass, **2 collisions** |
+| `dfa_v3` | as `dfa_v1`, reading `priority_gap_safe`, and braking while crossing if a car that should give way no longer can | 17 pass | 40 pass, no collision |
+
+**How a run is judged.** It *passes* when the ego reaches its destination and no rule
+automaton reports a violation. The controller and the rules read the same labels, so each
+run is also measured from positions and speeds alone: was there a collision, how close did
+the ego come to another car, how long did it take next to SUMO's own driver in the same
+traffic, and did a car with right of way brake hard next to the moving ego.
+
+**What it shows so far**
+
+- A hand-written DFA of seven states over these labels gets through every staged variant
+  and all 40 random draws, at a stop sign, a signal, an unprotected left turn and a
+  roundabout, with the same automaton everywhere.
+- It is slower than SUMO's driver (26.6 s against 22.4 s on average in random traffic),
+  because it cannot see where other cars are going and waits for everything that might
+  cross its path.
+- The staged variants did not find a single problem. Random traffic found six gaps in the
+  labels and two quirks of the simulator: see [docs/design_log.md](docs/design_log.md).
+  The largest gap led to a new label, `priority_gap_safe`.
+- With a car ahead in the ego's own lane, `dfa_v3` passes 38 of 40 draws and once runs
+  into the back of a car queued at a red light. No label describes a car ahead.
+- A controller can fail the tests: `dfa_v2` looked like an improvement and collided twice.
+
+**What it does not show.** Eight draws per scenario is a small sample; passing them says a
+DFA *can* drive these junctions, not how often it would fail. Background cars mostly brake
+for the ego, which hides mistakes. And passing the rule automata is not independent
+evidence, for the reason above.
+
+Diagrams and every result table are in [docs/controller.md](docs/controller.md). To write
+your own controller, see section 10.
+
+## 9. Scenarios and drivers
 
 ![maps and routes](docs/figures/scenarios.png)
 
@@ -456,11 +556,13 @@ and departure time. Every variant is driven by:
 - **scripted drivers** (only where listed): the ego follows a fixed speed script and
   ignores traffic. These stage what a rule-follower never does: rolling through a stop
   sign, pulling out too early, running a red light, waiting needlessly.
+- **controller automata** (after pipeline step 5): `dfa_v1`, `dfa_v2`, `dfa_v3` decide
+  from the labels alone (section 8).
 
 The step-by-step description of what a human driver notices in each variant is in
 [docs/traces.md](docs/traces.md).
 
-## 9. Changing things
+## 10. Changing things
 
 After any change below, run pipeline steps 2 to 4 again. Step 1 is needed only where
 noted. To change what a run is expected to show, see "Editing what a run is expected to
@@ -511,6 +613,44 @@ dont_block_the_exit = Automaton(
 Add it to the `AUTOMATA` list. If it changes what a run should be judged as, update the
 expected verdict of that run in the inspector (section 5).
 
+### Write a controller automaton (needs step 5 for its runs)
+
+Add a `Controller` to `semalpha/controllers.py`: an automaton written exactly like a rule
+automaton, plus one action for every state. This one stops at every junction and goes
+when nothing that outranks it is close:
+
+```python
+cautious = Controller(
+    name="cautious",
+    idea="Halt at every entry line, then go when no car that outranks me is close.",
+    automaton=Automaton(
+        name="cautious",
+        kind="controller",
+        rule="Drives the ego: the action of the current state is what the car does.",
+        initial="drive",
+        transitions={
+            "drive": (("approaching_junction", "halt"), ("at_entry_line", "halt")),
+            "halt": (("at_entry_line ego_stopped", "look"), ("in_junction", "move")),
+            "look": (("signal_stop", "look"), ("!priority_gap_safe", "look"), ("", "move")),
+            # moving off: back to looking if things change before the point of no return
+            "move": (("in_junction !in_waiting_area", "cross"),
+                     ("signal_stop !in_junction", "look"),
+                     ("!priority_gap_safe", "look")),
+            "cross": (("!in_junction", "drive"),),
+        },
+    ),
+    actions={"drive": GO, "halt": HOLD_AT_LINE, "look": HOLD_AT_LINE, "move": GO, "cross": GO},
+)
+```
+
+Add it to the `CONTROLLERS` line at the bottom of the file, then:
+
+    .venv\Scripts\python -m semalpha.drive cautious
+    .venv\Scripts\python -m semalpha.drive cautious --random 8
+
+The actions are `GO`, `HOLD_AT_LINE`, `HOLD_INSIDE` and `STOP`. A controller cannot set a
+speed or read a distance; if it needs to know something, that something has to be a label.
+
 ### Add a scenario variant (needs step 1 for the new runs)
 
 1. Add a `Variant` to a scenario in `semalpha/scenarios.py`:
@@ -542,7 +682,7 @@ gives way to whom, with:
 
     .venv\Scripts\python -m semalpha.mapinfo <name>
 
-## 10. Project structure
+## 11. Project structure
 
 ```
 semalpha/                  the Python package (short for "semantic alphabet")
@@ -555,7 +695,7 @@ semalpha/                  the Python package (short for "semantic alphabet")
   mapinfo.py               reads a map: movements, signs and signals, right of way, routes
   helpers.py               layer 1: geometry and kinematics helpers
   relations.py             layer 2: relational facts for one frame
-  predicates.py            layer 3: the 19 labels
+  predicates.py            layer 3: the 20 labels
   thresholds.yaml          every tunable number
   expectations.json        what every run is expected to show (edited in the inspector)
   expected.py              loads and checks expectations.json
@@ -563,6 +703,8 @@ semalpha/                  the Python package (short for "semantic alphabet")
   automata.py              what an automaton is and how it reads labels
   rules.py                 the rule set: eight small automata
   verify.py                step 3: run the automata, compare verdicts
+  controllers.py           controller automata and the executor that turns an action into a speed
+  drive.py                 step 5: let a controller drive, on staged variants and random traffic
   inspector.py             step 4: builds the inspector page
   inspector.html           the inspector's page template
   serve.py                 step 4: serves the inspector so edits can be saved
@@ -571,8 +713,9 @@ docs/
   traces.md                what a human driver notices in each scenario
   vocabulary.md            the labels: definitions, evidence, open points
   automata.md              the rule automata: diagrams, verdicts, limits (generated)
+  controller.md            the controller automata: diagrams, every result table (generated)
   design_log.md            decisions and the reasons for them
-  inspector.html           snapshot of the inspector for all 26 runs
+  inspector.html           snapshot of the inspector for the recorded runs
   figures/                 scenarios.png, traces.png
 scripts/
   patch_smarts_windows.py  makes SMARTS 2.0.1 run on Windows
@@ -588,17 +731,24 @@ Created when you run things, and not stored in the repository:
 .venv/                     the Python environment
 build/                     compiled maps and SMARTS scenario folders
 outputs/runs/              recorded runs
+outputs/random/            random-traffic draws driven by a controller, and their summaries
+outputs/trials/            runs made with changed thresholds (--set)
 outputs/traces/            label sequences
 outputs/inspector.html     the inspector page
 ```
 
-## 11. Known limits
+## 12. Known limits
 
 - **Perfect perception.** The labels see every car's exact position and speed, with no
   noise, no blind spots and no range limit. They do not see where a car is going.
-- **Not validated by a policy.** The labels and automata have been checked against
-  hand-written expectations on 26 staged runs. Nothing drives with them yet: the automata
-  only judge recordings.
+- **Not validated by a learned policy.** The labels and rule automata have been checked
+  against hand-written expectations on 26 staged runs. A hand-written automaton drives
+  with them (section 8); nothing learned does.
+- **Known gaps in the labels**, found by letting an automaton drive: a car standing still
+  reads as a safe gap even when it is about to move off; `gap_safe` assumes the ego turns
+  faster than it does; `others_can_yield` says a car can stop, not that it will; an ego
+  that entered lawfully and is caught inside by a red light is never credited with
+  priority. See the open points in [docs/vocabulary.md](docs/vocabulary.md).
 - **Two rules are half-tested.** No run breaks `stop_on_yellow_when_able` or
   `stay_on_road`, so only their "no false alarm" side has been checked.
 - **Three labels are untested.** `others_can_yield`, `exit_clear` and `off_road` never
@@ -608,18 +758,23 @@ outputs/inspector.html     the inspector page
 - **Right of way follows SUMO's rules** (right-hand traffic).
 - **The simulator does not police the ego.** SMARTS raises no event for running a stop
   sign or a red light; such violations show up only in the labels.
-- **Background cars are cooperative.** SUMO cars brake for a misbehaving ego, which softens
-  the staged unsafe runs.
+- **Background cars are mostly cooperative.** SUMO cars brake for a misbehaving ego, which
+  softens the staged unsafe runs. They do not always give way to an ego that is driven by
+  a script or a controller, even where they should.
+- **Holding still is not exact.** Told to stand still just before or inside a bend, the
+  simulated car creeps forward at about 0.1 m/s.
 - **Windows support is unofficial.** Two patches were enough for everything used here.
 - **Private SMARTS and SUMO internals** are read in a few places (`mapinfo.py`,
   `run.py`), so a different SMARTS version may need adjustments.
 
-## 12. Further reading
+## 13. Further reading
 
 - [docs/traces.md](docs/traces.md): the human reasoning each scenario is meant to capture.
 - [docs/vocabulary.md](docs/vocabulary.md): label definitions, statistics, threshold
   sensitivity, concepts left out and why, open points.
 - [docs/automata.md](docs/automata.md): state diagrams of the rule automata and their
   verdict on every run.
+- [docs/controller.md](docs/controller.md): state diagrams of the controller automata and
+  every result table, staged and random.
 - [docs/design_log.md](docs/design_log.md): what was decided, what went wrong on the first
   comparison, and what was changed.

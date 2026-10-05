@@ -95,7 +95,9 @@ respect_right_of_way = Automaton(
          "Judged at the moment of committing; what happens afterwards is not held against the ego.",
     initial="uncommitted",
     transitions={
-        "uncommitted": ((COMMITTED + " conflict_present !ego_has_priority !gap_safe", "violated"),
+        # one label for "a car that outranks the ego is too close": with `!ego_has_priority
+        # !gap_safe` the two halves could be about two different cars
+        "uncommitted": ((COMMITTED + " !priority_gap_safe", "violated"),
                         (COMMITTED, "committed")),
         "committed": (("!in_junction", "uncommitted"),),
     },

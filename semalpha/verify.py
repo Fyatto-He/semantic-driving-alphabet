@@ -20,7 +20,8 @@ from semalpha import ROOT
 from semalpha.automata import holds
 from semalpha.expected import EXPECTED_VERDICT, Verdict
 from semalpha.helpers import load_thresholds
-from semalpha.label import Trace, label_run, run_file
+from semalpha.controllers import CONTROLLERS
+from semalpha.label import Trace, drivers_of, label_run, run_file
 from semalpha.predicates import PROPOSITIONS
 from semalpha.record import Run
 from semalpha.rules import AUTOMATA, IDLE_WHILE_FREE, RULES, reach_goal, where_it_waited
@@ -61,6 +62,14 @@ def judge(trace: Trace) -> Judgement:
                      sorted(violations, key=lambda v: v[1]), states[where_it_waited.name][-1], idle)
 
 
+def expected_of(key, judgement: Judgement) -> Verdict:
+    """The verdict a run should get. For a controller automaton nobody has written one for,
+    it is simply: get through and break no rule. Where it halts is its own business."""
+    if key in EXPECTED_VERDICT or key[2] not in CONTROLLERS:
+        return EXPECTED_VERDICT[key]
+    return Verdict(True, (), judgement.waited)
+
+
 def same(a: Verdict, b: Verdict) -> bool:
     return a.completed == b.completed and set(a.violations) == set(b.violations) and a.waited == b.waited
 
@@ -90,7 +99,7 @@ def all_runs(args=(), thresholds=None):
         for variant in scenario.variants:
             if len(args) > 1 and variant.name != args[1]:
                 continue
-            for driver in ["sumo", *variant.scripts]:
+            for driver in drivers_of(scenario, variant):
                 if len(args) > 2 and driver != args[2]:
                     continue
                 key = (scenario.name, variant.name, driver)
@@ -105,7 +114,8 @@ def labels_used() -> List[str]:
 
 
 def write_docs(results, out=ROOT / "docs" / "automata.md") -> None:
-    agree = sum(same(j.verdict, EXPECTED_VERDICT[k]) for k, _, j in results)
+    results = [r for r in results if r[0][2] not in CONTROLLERS]     # those are in docs/controller.md
+    agree = sum(same(j.verdict, expected_of(k, j)) for k, _, j in results)
     used = labels_used()
     unused = [p for p in PROPOSITIONS if p not in used]
     md = [
@@ -130,13 +140,14 @@ def write_docs(results, out=ROOT / "docs" / "automata.md") -> None:
         "",
         f"{agree} of {len(results)} verdicts agree with the ones written down beforehand "
         "(the `verdict` entries in `semalpha/expectations.json`).",
+        "Runs in which a controller automaton drives are reported in [controller.md](controller.md).",
         "",
         "| Scenario | Variant | Driver | Completed | Rules broken | Halted | Idle while free | As expected |",
         "|---|---|---|:-:|---|---|--:|:-:|",
     ]
     for (scenario, variant, driver), _, j in results:
         broken = ", ".join(f"`{r}` at {t:.1f} s" for r, t in j.violations) or "none"
-        ok = "yes" if same(j.verdict, EXPECTED_VERDICT[(scenario, variant, driver)]) else "**no**"
+        ok = "yes" if same(j.verdict, expected_of((scenario, variant, driver), j)) else "**no**"
         md.append(f"| {scenario} | {variant} | {driver} | {'yes' if j.completed else 'no'} | {broken} "
                   f"| {j.waited} | {j.idle_while_free_s:.1f} s | {ok} |")
     broken_by = {rule.name: sum(any(r == rule.name for r, _ in j.violations) for _, _, j in results)
@@ -181,17 +192,22 @@ def main(argv) -> int:
         elif not a.startswith("--"):
             args.append(a)
     results = list(all_runs(args, thresholds))
-    agree = 0
+    agree, driven, driven_ok = 0, 0, 0
     for key, trace, judgement in results:
-        expected = EXPECTED_VERDICT[key]
+        expected = expected_of(key, judgement)
         ok = same(judgement.verdict, expected)
-        agree += ok
+        if key[2] in CONTROLLERS:
+            driven, driven_ok = driven + 1, driven_ok + ok
+        else:
+            agree += ok
         print(f"{'ok  ' if ok else 'DIFF'} {key[0]:<16}{key[1]:<22}{key[2]:<20} {judgement.summary()}")
         if not ok:
             print(f"       expected: {describe(expected)}")
         if len(args) > 1:
             print(state_changes(trace, judgement))
-    print(f"\n{agree} of {len(results)} verdicts as expected")
+    print(f"\n{agree} of {len(results) - driven} verdicts as expected")
+    if driven:
+        print(f"runs driven by a controller automaton: {driven_ok} of {driven} reached the destination without breaking a rule")
     if not args:
         used = labels_used()
         print(f"labels used by the automata ({len(used)}): {' '.join(used)}")

@@ -1,4 +1,7 @@
-# Semantic vocabulary v1 (implemented, under review at Checkpoint 3)
+# Semantic vocabulary v1.1 (20 propositions)
+
+v1, with 19 propositions, was reviewed at Checkpoint 3. `priority_gap_safe` was added on
+2026-10-05 after an automaton first drove, and accepted by the user.
 
 Derived from the traces in [traces.md](traces.md), implemented in `semalpha/`, and compared
 against the expected sequences in `semalpha/expected.py` on 26 recorded runs.
@@ -19,14 +22,14 @@ against the expected sequences in `semalpha/expected.py` on 26 recorded runs.
 |---|---|---|
 | 1 Helpers | distances, times, footprints, centre lines | `helpers.py`, `mapinfo.py` |
 | 2 Relational predicates | facts about the ego and one junction or one other car | `relations.py` |
-| 3 Propositions | the 19 true/false facts the automaton sees | `predicates.py` |
+| 3 Propositions | the 20 true/false facts the automaton sees | `predicates.py` |
 
 Terms: *the junction* is the one next on the ego's route or around the ego; a roundabout's
 whole ring counts as one junction. A *movement* is one permitted path through a junction.
 Two movements *share road* where their centre lines come closer than 2 m (two half-widths
 of `conflict_half_width_m`).
 
-## The 19 propositions
+## The 20 propositions
 
 | Group | Proposition | True when | Thresholds |
 |---|---|---|---|
@@ -39,6 +42,7 @@ of `conflict_half_width_m`).
 | Interaction | `conflict_present` | some car's possible path meets the ego's remaining path and neither has passed that place | `commit_lateral_m` 1, `commit_heading_deg` 20 |
 | | `ego_has_priority` | the rules give the ego right of way over every such car | none |
 | | `gap_safe` | going now, the ego and every such car would use the shared road at least the margin apart | `gap_margin_s` 2, `gap_ego_accel` 2 |
+| | `priority_gap_safe` | the same, but only for the cars that outrank the ego | as `gap_safe` |
 | | `others_can_yield` | every car that owes the ego priority whichever way it goes can still stop short of the ego's path | `others_stop_decel` 4.5 |
 | Occupancy | `path_blocked` | a car that is not heading along the ego's path is physically on it inside the junction | `same_direction_deg` 60 |
 | | `exit_clear` | no slow car occupies the space the ego needs beyond the junction | `exit_space_m` 2, `exit_blocking_speed` 1 |
@@ -48,7 +52,29 @@ of `conflict_half_width_m`).
 
 The three progress propositions `approaching_junction`, `at_entry_line`, `in_junction` are
 mutually exclusive. With no conflicting car, `conflict_present` is false and
-`ego_has_priority`, `gap_safe`, `others_can_yield` are true.
+`ego_has_priority`, `gap_safe`, `priority_gap_safe`, `others_can_yield` are true.
+
+### Why `priority_gap_safe` exists
+
+It was added on 2026-10-05, after an automaton was first allowed to drive
+([design_log.md](design_log.md), [controller.md](controller.md)). The other 19
+propositions are unchanged.
+
+**Why.** `ego_has_priority` and `gap_safe` each speak about every car at once. "Not
+`ego_has_priority` and not `gap_safe`" was meant to say "a car that outranks the ego is too
+close", but it is also true when one car outranks the ego from far away and a different
+car, which owes the ego priority, is close. On the roundabout that is the normal case: a
+car far round the ring outranks the ego while another waits to enter behind it. Two
+separate true/false labels cannot say that both facts are about the same car, so a label
+has to say it. This is the only place so far where the alphabet needed a fact about a pair
+of relations and not about one.
+
+**What uses it.** The rule `respect_right_of_way` and the controller `dfa_v3`. With it,
+`conflict_present` and `ego_has_priority` are no longer read by any rule automaton.
+
+**Considered and not done.** Replacing `gap_safe` by two labels, one for cars that outrank
+the ego and one for cars that owe it priority. That would have changed a reviewed label
+and the expectations written against it.
 
 ### How the interaction propositions are computed
 
@@ -95,6 +121,7 @@ After the first comparison with the expected sequences:
 | `conflict_present` | 28% | 36 | 0 | |
 | `ego_has_priority` | 75% | 32 | 0 | |
 | `gap_safe` | 74% | 42 | 2 | flickers when another car changes speed (roundabout approach) |
+| `priority_gap_safe` | 76% | 38 | 2 | differs from `gap_safe` only while the tight gap is to a car that owes the ego priority |
 | `others_can_yield` | 100% | 0 | 0 | **never false: not exercised** |
 | `path_blocked` | 1% | 29 | 1 | almost always coincides with an unsafe gap |
 | `exit_clear` | 100% | 0 | 0 | **never false: not exercised** |
@@ -157,3 +184,21 @@ How the three main interaction propositions combine (seconds over all runs):
 6. **`has_priority` for an ego inside on red** is always false, which also covers the
    lawful case of an ego that entered on green and is still waiting inside when the
    lights change. Telling the two apart needs memory of the signal at entry.
+
+Found by letting an automaton drive (2026-10-05, [controller.md](controller.md)):
+
+7. **Two labels about "every car" cannot be combined into a fact about one car.** See the
+   `priority_gap_safe` above. The same weakness remains in "`!gap_safe` and
+   `!others_can_yield`", which the controllers read as "a car that should give way is not
+   going to".
+8. **A car that is standing still reads as a safe gap**, because a stationary car "never
+   arrives". That is right for a car that is parked or held, and wrong for a car with right
+   of way that is waiting for its own gap or for a green light: it moves off in the same
+   moment as the ego. A controller that commits on `gap_safe` collides
+   (`dfa_v2`, two collisions); one that keeps checking stops again in time.
+9. **`gap_safe` assumes the ego takes the turn at the lane's speed limit.** The simulated
+   car turns at about two thirds of that, so a gap that reads safe at the line can read
+   unsafe a second later with nothing else having changed.
+10. **`others_can_yield` says whether a car can still stop, not whether it is going to.**
+    A car that should give way and keeps coming is noticed only when it is too late for it
+    to stop, which left the ego about a second and a half in the case seen.

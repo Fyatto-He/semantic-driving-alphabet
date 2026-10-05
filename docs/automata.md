@@ -77,7 +77,7 @@ Do not go past the point of no return while a car that outranks the ego is too c
 ```mermaid
 stateDiagram-v2
     [*] --> uncommitted
-    uncommitted --> violated: in_junction and not in_waiting_area and conflict_present and not ego_has_priority and not gap_safe
+    uncommitted --> violated: in_junction and not in_waiting_area and not priority_gap_safe
     uncommitted --> committed: in_junction and not in_waiting_area
     committed --> uncommitted: not in_junction
 ```
@@ -118,6 +118,7 @@ stateDiagram-v2
 ## Verdicts on the recorded runs
 
 26 of 26 verdicts agree with the ones written down beforehand (the `verdict` entries in `semalpha/expectations.json`).
+Runs in which a controller automaton drives are reported in [controller.md](controller.md).
 
 | Scenario | Variant | Driver | Completed | Rules broken | Halted | Idle while free | As expected |
 |---|---|---|:-:|---|---|--:|:-:|
@@ -162,6 +163,6 @@ it. It is measured directly from the labels, not by an automaton, because it cou
 
 ## Labels the rule set needs
 
-Used (15): `at_entry_line`, `in_junction`, `in_waiting_area`, `stop_sign`, `signal_go`, `signal_caution`, `signal_stop`, `conflict_present`, `ego_has_priority`, `gap_safe`, `ego_stopped`, `can_stop_before_entry`, `collision`, `off_road`, `goal_reached`.
+Used (14): `at_entry_line`, `in_junction`, `in_waiting_area`, `stop_sign`, `signal_go`, `signal_caution`, `signal_stop`, `gap_safe`, `priority_gap_safe`, `ego_stopped`, `can_stop_before_entry`, `collision`, `off_road`, `goal_reached`.
 
-Not used by any automaton (4): `approaching_junction`, `others_can_yield`, `path_blocked`, `exit_clear`.
+Not used by any automaton (6): `approaching_junction`, `conflict_present`, `ego_has_priority`, `others_can_yield`, `path_blocked`, `exit_clear`.
