@@ -3,17 +3,22 @@
     python -m semalpha.inspector      # writes outputs/inspector.html
 
 For each run the page shows the junction from above, the labels that are true at the
-selected moment, which cars the interaction labels are reacting to and why, the expected
-sequence, and a timeline of every label. Nothing is simulated; it reads outputs/runs.
+selected moment, which cars the interaction labels are reacting to and why, the rule
+automata as live state diagrams, a timeline of every label, and the expectations for the
+run, which can be edited in the page. Nothing is simulated; it reads outputs/runs.
+
+Opened as a file, edits can be downloaded. Served by `python -m semalpha.serve`, they are
+saved straight to semalpha/expectations.json.
 """
 from __future__ import annotations
 
+import functools
 import json
 import math
 import sys
 from pathlib import Path
 
-from semalpha import OUTPUTS
+from semalpha import OUTPUTS, expected
 from semalpha.expected import EXPECTED, EXPECTED_VERDICT
 from semalpha.helpers import Polyline, load_thresholds
 from semalpha.label import Trace, compare, run_file
@@ -21,9 +26,9 @@ from semalpha.mapinfo import MapInfo
 from semalpha.predicates import GROUP, PROPOSITIONS
 from semalpha.record import Run
 from semalpha.relations import Scene
-from semalpha.rules import AUTOMATA
+from semalpha.rules import AUTOMATA, RULES, where_it_waited
 from semalpha.scenarios import SCENARIOS
-from semalpha.verify import describe, judge, same
+from semalpha.verify import judge, same
 
 NAMES = list(PROPOSITIONS)
 
@@ -61,7 +66,8 @@ def _why(view) -> list:
     return lines
 
 
-def _run_payload(scenario, variant, driver, thresholds) -> dict:
+def _run_payload(scenario, variant, driver, thresholds):
+    """Everything about one run that does not depend on its expectation."""
     run = Run.load(run_file(scenario.name, variant.name, driver))
     mapinfo = MapInfo(run.net_path)
     scene = Scene(mapinfo, run.ego_route, thresholds, run.ego_end)
@@ -79,10 +85,7 @@ def _run_payload(scenario, variant, driver, thresholds) -> dict:
         why.append(_why(view))
         labels.append(frozenset(n for n, holds in PROPOSITIONS.items() if holds(view)))
     trace = Trace(run, [f.t for f in run.frames], labels)
-    expectation = EXPECTED[(scenario.name, variant.name, driver)]
-    match = compare(trace, expectation)
     judgement = judge(trace)
-    expected_verdict = EXPECTED_VERDICT[(scenario.name, variant.name, driver)]
 
     region = scene.regions[0]
     path = scene.path
@@ -96,15 +99,11 @@ def _run_payload(scenario, variant, driver, thresholds) -> dict:
     heading = scene.route.heading_at(region.entry_s)
     nx, ny = -math.sin(heading), math.cos(heading)
     script = variant.scripts.get(driver)
-    return {
+    payload = {
+        "key": f"{scenario.name}/{variant.name}/{driver}",
         "scenario": scenario.name, "variant": variant.name, "driver": driver, "map": scenario.map,
         "story": variant.story,
         "why_driver": script.why if script else "the simulator's rule-following driver.",
-        "verdict": match.verdict,
-        "phases": [{"name": p[0], "literals": p[1], "optional": len(p) > 2, "t": t}
-                   for p, t in zip(expectation.phases, match.reached)],
-        "unexplained": [[_r(a, 1), _r(b, 1)] for a, b in match.unexplained],
-        "violations": [[combo, _r(t, 1), _r(total, 1)] for combo, t, total in match.violations],
         "window": [_r(cx - half), _r(cy - half), _r(cx + half), _r(cy + half)],
         "route": [[_r(x), _r(y)] for x, y in path.line.coords],
         "entry_line": [[_r(ex - 1.9 * nx), _r(ey - 1.9 * ny)], [_r(ex + 1.9 * nx), _r(ey + 1.9 * ny)]],
@@ -114,7 +113,6 @@ def _run_payload(scenario, variant, driver, thresholds) -> dict:
         "ego": ego_rows,
         "why": why,
         "labels": [sum(1 << k for k, n in enumerate(NAMES) if n in s) for s in labels],
-        "phase": match.phase_of_frame,
         # for each automaton, the index of its state after every frame
         "auto": [[a.states.index(s) for s in judgement.states[a.name]] for a in AUTOMATA],
         "spec": {
@@ -123,13 +121,14 @@ def _run_payload(scenario, variant, driver, thresholds) -> dict:
             "violations": [[rule, _r(t, 1)] for rule, t in judgement.violations],
             "waited": judgement.waited,
             "idle": _r(judgement.idle_while_free_s, 1),
-            "as_expected": same(judgement.verdict, expected_verdict),
-            "expected": describe(expected_verdict),
         },
     }
+    return payload, trace, judgement
 
 
-def build(out: Path = OUTPUTS / "inspector.html") -> Path:
+@functools.lru_cache(maxsize=1)
+def _recorded():
+    """The slow part, done once: label every frame of every run and run the automata."""
     thresholds = load_thresholds()
     groups = list(dict.fromkeys(GROUP.values()))
     data = {
@@ -141,21 +140,58 @@ def build(out: Path = OUTPUTS / "inspector.html") -> Path:
                       "good": list(a.good), "bad": list(a.bad),
                       "transitions": {s: [list(m) for m in moves] for s, moves in a.transitions.items()}}
                      for a in AUTOMATA],
+        "rules": [r.name for r in RULES],
+        "halts": where_it_waited.states,
         "maps": {},
-        "runs": [],
     }
+    runs = []
     for scenario in SCENARIOS.values():
         for variant in scenario.variants:
             for driver in ["sumo", *variant.scripts]:
-                payload = _run_payload(scenario, variant, driver, thresholds)
-                data["runs"].append(payload)
+                runs.append(((scenario.name, variant.name, driver),
+                             *_run_payload(scenario, variant, driver, thresholds)))
                 if scenario.map not in data["maps"]:
                     run = Run.load(run_file(scenario.name, variant.name, driver))
                     data["maps"][scenario.map] = _map_payload(MapInfo(run.net_path))
+    return data, runs
+
+
+def render() -> str:
+    """The page as text, with the expectations as they are in expectations.json right now."""
+    expected.reload()
+    saved = expected.read()
+    data, recorded = _recorded()
+    tolerance = load_thresholds().phase_time_tolerance_s
+    runs = []
+    for key, payload, trace, judgement in recorded:
+        entry = saved.get("/".join(key), {})
+        verdict = entry.get("verdict", {})
+        match = compare(trace, EXPECTED[key], tolerance)
+        runs.append({
+            **payload,
+            # the expectation as saved; the page works on a copy of this and re-checks it itself
+            "expect": {
+                "phases": [{"name": ph["name"], "labels": ph["labels"], "optional": bool(ph.get("optional")),
+                            "at": ph.get("at")} for ph in entry.get("phases", [])],
+                "never": list(entry.get("never", [])),
+                "verdict": {"completed": verdict.get("completed", True),
+                            "violations": list(verdict.get("violations", [])),
+                            "waited": verdict.get("waited", "nowhere")},
+            },
+            # the same check as done by label.py and verify.py, so the page's own check can be compared with it
+            "py": {"verdict": match.verdict, "reached": match.reached,
+                   "unexplained_s": _r(match.unexplained_s, 1), "forbidden": len(match.violations),
+                   "timing": len(match.timing),
+                   "as_expected": same(judgement.verdict, EXPECTED_VERDICT[key])},
+        })
+    full = {**data, "runs": runs, "stamp": expected.stamp(saved), "tolerance": tolerance}
     template = Path(__file__).with_name("inspector.html").read_text(encoding="utf-8")
-    blob = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
+    return template.replace("/*DATA*/null", json.dumps(full, separators=(",", ":")).replace("</", "<\\/"))
+
+
+def build(out: Path = OUTPUTS / "inspector.html") -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(template.replace("/*DATA*/null", blob), encoding="utf-8")
+    out.write_text(render(), encoding="utf-8")
     return out
 
 

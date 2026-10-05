@@ -1,0 +1,1153 @@
+{
+  "t_stop_left/clear/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "stopped at the stop line, road empty",
+        "labels": "at_entry_line ego_stopped stop_sign !conflict_present gap_safe",
+        "optional": false
+      },
+      {
+        "name": "at the line, free to go",
+        "labels": "at_entry_line gap_safe",
+        "optional": false
+      },
+      {
+        "name": "crossing, nobody around",
+        "labels": "in_junction !conflict_present",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "at_line"
+    }
+  },
+  "t_stop_left/clear/roll_through": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "at the stop line, still moving",
+        "labels": "at_entry_line stop_sign !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "crossing the junction",
+        "labels": "in_junction",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "at_entry_line ego_stopped",
+      "collision"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [
+        "stop_at_stop_sign"
+      ],
+      "waited": "nowhere"
+    }
+  },
+  "t_stop_left/wait_for_gap/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "held at the stop line by traffic that outranks me",
+        "labels": "at_entry_line ego_stopped conflict_present !ego_has_priority !gap_safe stop_sign",
+        "optional": false
+      },
+      {
+        "name": "at the line, free to go",
+        "labels": "at_entry_line gap_safe",
+        "optional": false
+      },
+      {
+        "name": "crossing the junction",
+        "labels": "in_junction",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "at_line"
+    }
+  },
+  "t_stop_left/wait_for_gap/enter_too_early": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "held at the stop line",
+        "labels": "at_entry_line ego_stopped conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "moving off the line",
+        "labels": "at_entry_line !ego_stopped",
+        "optional": true
+      },
+      {
+        "name": "inside, still short of anyone else's path",
+        "labels": "in_junction in_waiting_area",
+        "optional": true
+      },
+      {
+        "name": "pulled out in front of a car that outranks me",
+        "labels": "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "crossing the rest of the junction",
+        "labels": "in_junction",
+        "optional": true
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [],
+    "verdict": {
+      "completed": true,
+      "violations": [
+        "respect_right_of_way"
+      ],
+      "waited": "at_line"
+    }
+  },
+  "t_stop_left/wait_for_gap/overcautious": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "held at the stop line",
+        "labels": "at_entry_line ego_stopped conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "still stopped although the gap is sufficient",
+        "labels": "at_entry_line ego_stopped gap_safe",
+        "optional": false
+      },
+      {
+        "name": "moving off the line",
+        "labels": "at_entry_line !ego_stopped",
+        "optional": true
+      },
+      {
+        "name": "crossing the junction",
+        "labels": "in_junction",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "at_line"
+    }
+  },
+  "t_stop_left/gap_closes/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "held at the stop line; the short opening is not enough",
+        "labels": "at_entry_line ego_stopped conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "at the line, free to go",
+        "labels": "at_entry_line gap_safe",
+        "optional": false
+      },
+      {
+        "name": "crossing the junction",
+        "labels": "in_junction",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "at_line"
+    }
+  },
+  "t_stop_left/other_turns_off/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "at the stop line; the other car might cross my path",
+        "labels": "at_entry_line ego_stopped conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "moving off the line",
+        "labels": "at_entry_line !ego_stopped",
+        "optional": true
+      },
+      {
+        "name": "inside, still short of anyone else's path",
+        "labels": "in_junction in_waiting_area",
+        "optional": true
+      },
+      {
+        "name": "entered anyway (the simulator's driver knows the other car's route)",
+        "labels": "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "the other car is visibly turning off",
+        "labels": "in_junction !conflict_present",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [
+        "respect_right_of_way"
+      ],
+      "waited": "at_line"
+    }
+  },
+  "t_stop_left/other_turns_off/wait_until_it_turns": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "at the stop line; the other car might cross my path",
+        "labels": "at_entry_line ego_stopped conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "the other car is visibly turning off",
+        "labels": "at_entry_line !conflict_present gap_safe",
+        "optional": false
+      },
+      {
+        "name": "crossing the junction",
+        "labels": "in_junction",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "at_line"
+    }
+  },
+  "t_major_left/clear/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "crossing, nobody around",
+        "labels": "in_junction !conflict_present !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe",
+      "ego_stopped",
+      "stop_sign"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "nowhere"
+    }
+  },
+  "t_major_left/oncoming_then_gap/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "pulling into the waiting area",
+        "labels": "in_waiting_area conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "held in the waiting area by oncoming traffic",
+        "labels": "in_waiting_area conflict_present !ego_has_priority !gap_safe ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "gap opens",
+        "labels": "in_junction gap_safe",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe",
+      "stop_sign"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "inside"
+    }
+  },
+  "t_major_left/oncoming_then_gap/turn_across": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "inside, still short of anyone else's path",
+        "labels": "in_junction in_waiting_area",
+        "optional": true
+      },
+      {
+        "name": "turning across a car that outranks me",
+        "labels": "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "crash",
+        "labels": "collision",
+        "optional": false
+      }
+    ],
+    "never": [],
+    "verdict": {
+      "completed": false,
+      "violations": [
+        "respect_right_of_way",
+        "no_collision"
+      ],
+      "waited": "nowhere"
+    }
+  },
+  "t_major_left/oncoming_then_gap/wait_in_junction": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "pulling into the waiting area",
+        "labels": "in_waiting_area conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "held in the waiting area by oncoming traffic",
+        "labels": "in_waiting_area conflict_present !ego_has_priority !gap_safe ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "gap opens",
+        "labels": "in_junction gap_safe",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "inside"
+    }
+  },
+  "t_major_left/minor_car_waiting/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "a side-road car owes me priority and can still stop",
+        "labels": "!in_junction conflict_present ego_has_priority others_can_yield",
+        "optional": false
+      },
+      {
+        "name": "crossing with priority",
+        "labels": "in_junction ego_has_priority",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "ego_stopped",
+      "conflict_present !ego_has_priority"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "nowhere"
+    }
+  },
+  "t_major_left/oncoming_turns_right/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "pulling into the waiting area",
+        "labels": "in_waiting_area conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "held in the waiting area; its path merges with mine",
+        "labels": "in_waiting_area conflict_present !ego_has_priority !gap_safe ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "gap opens",
+        "labels": "in_junction gap_safe",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "inside"
+    }
+  },
+  "signal_straight/green/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "approaching on green",
+        "labels": "signal_go !in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "crossing on green",
+        "labels": "in_junction signal_go",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe",
+      "ego_stopped",
+      "signal_stop",
+      "signal_caution"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "nowhere"
+    }
+  },
+  "signal_straight/red_then_green/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "approaching on red, room to stop",
+        "labels": "signal_stop !in_junction can_stop_before_entry",
+        "optional": false
+      },
+      {
+        "name": "stopped at the line on red",
+        "labels": "at_entry_line ego_stopped signal_stop",
+        "optional": false
+      },
+      {
+        "name": "green, still at the line",
+        "labels": "at_entry_line signal_go",
+        "optional": false
+      },
+      {
+        "name": "crossing on green",
+        "labels": "in_junction signal_go",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe",
+      "in_junction signal_stop"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "at_line"
+    }
+  },
+  "signal_straight/red_then_green/run_red": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "approaching on red",
+        "labels": "signal_stop !in_junction",
+        "optional": false
+      },
+      {
+        "name": "inside on red while cross traffic outranks me",
+        "labels": "in_junction signal_stop conflict_present !ego_has_priority",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [],
+    "verdict": {
+      "completed": true,
+      "violations": [
+        "obey_red_signal",
+        "respect_right_of_way"
+      ],
+      "waited": "nowhere"
+    }
+  },
+  "signal_straight/yellow_far/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "approaching on green",
+        "labels": "signal_go !in_junction",
+        "optional": false
+      },
+      {
+        "name": "yellow, room to stop",
+        "labels": "signal_caution !in_junction can_stop_before_entry",
+        "optional": false
+      },
+      {
+        "name": "red, still rolling up to the line",
+        "labels": "signal_stop !in_junction !ego_stopped",
+        "optional": true
+      },
+      {
+        "name": "stopped at the line on red",
+        "labels": "at_entry_line ego_stopped signal_stop",
+        "optional": false
+      },
+      {
+        "name": "green, still at the line",
+        "labels": "at_entry_line signal_go",
+        "optional": false
+      },
+      {
+        "name": "crossing on green",
+        "labels": "in_junction signal_go",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe",
+      "in_junction signal_stop",
+      "in_junction signal_caution"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "at_line"
+    }
+  },
+  "signal_straight/yellow_near/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "approaching on green",
+        "labels": "signal_go !in_junction",
+        "optional": false
+      },
+      {
+        "name": "yellow, no room to stop",
+        "labels": "signal_caution !in_junction !can_stop_before_entry",
+        "optional": false
+      },
+      {
+        "name": "crossing on yellow",
+        "labels": "in_junction signal_caution",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe",
+      "ego_stopped",
+      "signal_caution can_stop_before_entry"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "nowhere"
+    }
+  },
+  "signal_left/oncoming_then_gap/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "green; pulling into the waiting area",
+        "labels": "in_waiting_area conflict_present !ego_has_priority !gap_safe signal_go",
+        "optional": false
+      },
+      {
+        "name": "held in the waiting area by oncoming traffic",
+        "labels": "in_waiting_area conflict_present !ego_has_priority !gap_safe ego_stopped signal_go",
+        "optional": false
+      },
+      {
+        "name": "gap opens",
+        "labels": "in_junction gap_safe",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "inside"
+    }
+  },
+  "roundabout/empty/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "on the ring, nobody around",
+        "labels": "in_junction !conflict_present",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe",
+      "ego_stopped",
+      "stop_sign",
+      "conflict_present"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "nowhere"
+    }
+  },
+  "roundabout/yield_to_circulating/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "held at the yield line by a car on the ring",
+        "labels": "at_entry_line ego_stopped conflict_present !ego_has_priority !gap_safe !stop_sign",
+        "optional": false
+      },
+      {
+        "name": "at the line, free to go",
+        "labels": "at_entry_line gap_safe",
+        "optional": false
+      },
+      {
+        "name": "crossing the junction",
+        "labels": "in_junction",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "at_line"
+    }
+  },
+  "roundabout/yield_to_circulating/cut_in": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "a ring car that outranks me is too close",
+        "labels": "!in_junction conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "inside, still short of anyone else's path",
+        "labels": "in_junction in_waiting_area",
+        "optional": true
+      },
+      {
+        "name": "entered in front of it",
+        "labels": "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "crash",
+        "labels": "collision",
+        "optional": false
+      }
+    ],
+    "never": [],
+    "verdict": {
+      "completed": false,
+      "violations": [
+        "respect_right_of_way",
+        "no_collision"
+      ],
+      "waited": "nowhere"
+    }
+  },
+  "roundabout/circulating_exits/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "a ring car might pass in front of me",
+        "labels": "!in_junction conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "inside, still short of anyone else's path",
+        "labels": "in_junction in_waiting_area",
+        "optional": true
+      },
+      {
+        "name": "entered anyway (the simulator's driver knows the other car's route)",
+        "labels": "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "the other car has visibly left the ring",
+        "labels": "in_junction !conflict_present",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [
+        "respect_right_of_way"
+      ],
+      "waited": "nowhere"
+    }
+  },
+  "roundabout/circulating_exits/wait_until_it_exits": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "a ring car might pass in front of me",
+        "labels": "!in_junction conflict_present !ego_has_priority !gap_safe",
+        "optional": false
+      },
+      {
+        "name": "the other car has visibly left the ring",
+        "labels": "at_entry_line !conflict_present gap_safe",
+        "optional": false
+      },
+      {
+        "name": "crossing the junction",
+        "labels": "in_junction",
+        "optional": false
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "at_line"
+    }
+  },
+  "roundabout/entering_car_yields/sumo": {
+    "phases": [
+      {
+        "name": "driving up to the junction",
+        "labels": "!in_junction !ego_stopped",
+        "optional": false
+      },
+      {
+        "name": "on the ring",
+        "labels": "in_junction",
+        "optional": false
+      },
+      {
+        "name": "a car at the next entry owes me priority and can still stop",
+        "labels": "in_junction conflict_present ego_has_priority others_can_yield",
+        "optional": false
+      },
+      {
+        "name": "crossing the rest of the junction",
+        "labels": "in_junction",
+        "optional": true
+      },
+      {
+        "name": "out of the junction",
+        "labels": "!in_junction !at_entry_line",
+        "optional": false
+      },
+      {
+        "name": "destination reached",
+        "labels": "goal_reached",
+        "optional": false
+      }
+    ],
+    "never": [
+      "collision",
+      "off_road",
+      "ego_stopped",
+      "conflict_present !ego_has_priority"
+    ],
+    "verdict": {
+      "completed": true,
+      "violations": [],
+      "waited": "nowhere"
+    }
+  }
+}

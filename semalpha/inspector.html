@@ -90,7 +90,10 @@
   #dfaKey i { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--ink); }
   main { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, 1fr); gap: 12px; padding: 0 16px; }
   @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
-  #mapWrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  /* the map stays in view while the right-hand column (which gets long when editing) scrolls */
+  #mapWrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+             position: sticky; top: 8px; align-self: start; z-index: 1; }
+  @media (max-width: 860px) { #mapWrap { position: static; } }
   #map { width: 100%; height: 400px; display: block; }
   #controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px; border-top: 1px solid var(--border); }
   #slider { flex: 1 1 160px; min-width: 120px; accent-color: var(--s1); }
@@ -112,6 +115,45 @@
   #phases li.missed { color: var(--critical); }
   #phases .when { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 400; margin-right: 6px; }
   #notes { color: var(--ink2); margin: 6px 0 0; padding-left: 16px; }
+  /* expectations: view and editor */
+  #expBar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+  #expBar button:disabled { opacity: .4; cursor: default; }
+  #phases small { color: var(--muted); font-weight: 400; }
+  #phases small.missed { color: var(--critical); }
+  #expEdit .phTime { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 12px; color: var(--ink2); margin-bottom: 4px; }
+  #expEdit .phTime input { width: 74px; font: inherit; font-size: 12px; color: var(--ink); background: var(--panel);
+                           border: 1px solid var(--border); border-radius: 5px; padding: 2px 5px; }
+  #expEdit .phTime a { cursor: pointer; text-decoration: underline; color: var(--ink); }
+  #expEdit .adders { display: flex; flex-wrap: wrap; gap: 6px; }
+  #saveNote { color: var(--ink2); }
+  #vView { margin-top: 8px; color: var(--ink2); }
+  #expEdit h3 { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 14px 0 4px; font-weight: 600; }
+  #expEdit .hint { color: var(--muted); margin: 0 0 8px; font-size: 12px; }
+  #expEdit .ph { border: 1px solid var(--border); border-left: 3px solid var(--axis); border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; background: var(--surface); }
+  #expEdit .ph.cur { border-left-color: var(--ink); }
+  #expEdit .phTop { display: flex; gap: 5px; align-items: center; }
+  #expEdit .num { font-weight: 700; min-width: 16px; font-variant-numeric: tabular-nums; }
+  #expEdit input[type=text] { flex: 1; min-width: 0; font: inherit; color: var(--ink); background: var(--panel);
+                              border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px; }
+  #expEdit button { padding: 2px 7px; min-width: 26px; }
+  #expEdit button:disabled { opacity: .35; cursor: default; }
+  #expEdit .lits { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 4px; align-items: center; }
+  #expEdit .lit { display: inline-flex; align-items: center; border-radius: 11px; border: 1px solid var(--ink2); font-size: 12px; overflow: hidden; }
+  #expEdit .lit a { cursor: pointer; padding: 1px 4px 1px 8px; user-select: none; }
+  #expEdit .lit a.x { padding: 1px 7px 1px 3px; color: var(--muted); }
+  #expEdit .lit a.x:hover { color: var(--critical); }
+  #expEdit .lit i { font-style: normal; font-weight: 700; font-size: 10px; letter-spacing: .04em; margin-right: 4px; }
+  #expEdit .lit.on { background: var(--panel); }
+  #expEdit .lit.off { border-style: dashed; color: var(--ink2); }
+  #expEdit select { font-size: 12px; padding: 1px 4px; }
+  #expEdit .phFoot { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 12px; color: var(--ink2); }
+  #expEdit .missed { color: var(--critical); }
+  #expEdit .fitTag.yes { color: var(--ink); font-weight: 600; }
+  #expEdit .fitTag.no { color: var(--muted); }
+  #expEdit .nv { display: flex; gap: 6px; align-items: center; }
+  #expEdit .nv .lits { flex: 1; }
+  #expEdit .row { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin: 4px 0; }
+  #expEdit label { display: inline-flex; gap: 4px; align-items: center; }
   #tlWrap { position: relative; margin: 12px 16px 20px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 6px 4px; }
   #tl { width: 100%; display: block; cursor: crosshair; }
   #tip { position: absolute; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--axis);
@@ -147,7 +189,20 @@
     <div class="card"><h2>Now</h2><div id="now"></div><div id="changed"></div></div>
     <div class="card"><h2>Labels</h2><div id="chips"></div></div>
     <div class="card"><h2>Cars whose path may meet the ego's</h2><ul id="why"></ul></div>
-    <div class="card"><h2>Expected sequence</h2><ol id="phases"></ol><ul id="notes"></ul></div>
+    <div class="card" id="expCard">
+      <h2>Expected for this run</h2>
+      <div id="expBar">
+        <button id="bEdit">Edit</button>
+        <button id="bUndo" hidden title="Undo the last change (Ctrl+Z)">Undo</button>
+        <button id="bRedo" hidden title="Redo the change just undone (Ctrl+Y)">Redo</button>
+        <button id="bRevert" hidden title="Put this run back to how it was last saved">Revert this run</button>
+        <button id="bSave" hidden>Save</button>
+        <button id="bDiscard" hidden title="Put every run back to how it was last saved">Discard all changes</button>
+        <span id="saveNote"></span>
+      </div>
+      <div id="expView"><ol id="phases"></ol><ul id="notes"></ul><div id="vView"></div></div>
+      <div id="expEdit" hidden></div>
+    </div>
   </aside>
 </main>
 <section id="dfaWrap" class="card">
@@ -185,34 +240,340 @@ let lastScenario = null, og = null;
 DATA.runs.forEach((r, i) => {
   if (r.scenario !== lastScenario) { og = document.createElement('optgroup'); og.label = r.scenario; sel.appendChild(og); lastScenario = r.scenario; }
   const o = document.createElement('option');
-  o.value = i; o.textContent = r.variant + '  /  ' + r.driver + '   ' + ({match: '✓', 'match*': '≈', MISMATCH: '✗'}[r.verdict]);
+  o.value = i;
   og.appendChild(o);
 });
+function refreshOptions() {       // the mark after each run: its label sequence, or a cross if the automata's verdict is unexpected
+  const mark = {match: '✓', 'match*': '≈', timing: '◷', MISMATCH: '✗', none: '—'};
+  [...sel.options].forEach(o => {
+    const r = DATA.runs[+o.value], changed = JSON.stringify(EXP[r.key]) !== JSON.stringify(SAVED[r.key]);
+    o.textContent = r.variant + '  /  ' + r.driver + '   ' + (r.spec.as_expected ? mark[r.verdict] : '✗') + (changed ? '   (edited)' : '');
+  });
+}
+
+// ---- expectations: a working copy that is checked in the page and can be edited ----------
+const clone = x => JSON.parse(JSON.stringify(x));
+const esc = s => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+const EXP = {};                               // run key -> the expectation as it is being edited
+DATA.runs.forEach(r => EXP[r.key] = clone(r.expect));
+let SAVED = clone(EXP);                       // as loaded or last saved
+let editing = false, SERVER = false, note = '';
+const LOCAL = 'semalpha-expectation-edits';   // unsaved edits survive a reload of the same page
+try {
+  const kept = JSON.parse(localStorage.getItem(LOCAL) || 'null');
+  if (kept && kept.stamp === DATA.stamp) {
+    Object.keys(EXP).forEach(k => { if (kept.exp[k]) EXP[k] = kept.exp[k]; });
+    if (JSON.stringify(EXP) !== JSON.stringify(SAVED)) note = 'Unsaved edits from your last visit were restored.';
+  }
+} catch (e) {}
+function keepLocal() {
+  try {
+    if (JSON.stringify(EXP) === JSON.stringify(SAVED)) localStorage.removeItem(LOCAL);
+    else localStorage.setItem(LOCAL, JSON.stringify({stamp: DATA.stamp, exp: EXP}));
+  } catch (e) {}
+}
+const fits = (bits, literals) => literals.split(' ').filter(Boolean).every(lit => litHolds(lit, bits));
+
+// The same check as label.py: walk the frames through the phases in order.
+function evaluate(r) {
+  const e = EXP[r.key], ph = e.phases, n = ph.length, blank = !n && !e.never.some(c => c.trim());
+  const reached = new Array(n).fill(null), phase = [], unexplained = [];
+  let i = -1;
+  r.labels.forEach((bits, f) => {
+    if (blank) { phase.push(-1); return; }
+    let nxt = i + 1;                  // the next phase, or a later one if every phase skipped is optional
+    while (nxt < n && !fits(bits, ph[nxt].labels) && ph[nxt].optional) nxt++;
+    if (nxt < n && fits(bits, ph[nxt].labels)) { i = nxt; reached[i] = r.t[f]; phase.push(i); }
+    else if (i >= 0 && fits(bits, ph[i].labels)) phase.push(i);
+    else {
+      phase.push(-1);
+      const t = r.t[f], u = unexplained[unexplained.length - 1];
+      if (u && Math.abs(u[1] - t) < 1.5 * DATA.dt) u[1] = t + DATA.dt; else unexplained.push([t, t + DATA.dt]);
+    }
+  });
+  const violations = [];
+  e.never.forEach(combo => {
+    if (!combo.trim()) return;
+    const hits = r.labels.map((b, f) => fits(b, combo) ? f : -1).filter(f => f >= 0);
+    if (hits.length) violations.push([combo, r.t[hits[0]], hits.length * DATA.dt]);
+  });
+  const missed = ph.some((p, k) => !p.optional && reached[k] === null);
+  // a phase that was given a time must be reached within the tolerance of it
+  const timing = [];
+  ph.forEach((p, k) => { if (p.at != null && reached[k] !== null && Math.abs(reached[k] - p.at) > DATA.tolerance + 1e-9) timing.push([k, p.at, reached[k]]); });
+  r.verdict = blank ? 'none' : (missed || violations.length) ? 'MISMATCH' : timing.length ? 'timing' : unexplained.length ? 'match*' : 'match';
+  r.phases = ph.map((p, k) => ({name: p.name, literals: p.labels, optional: p.optional, at: p.at == null ? null : p.at, t: reached[k]}));
+  r.timing = timing;
+  r.unexplained = unexplained; r.violations = violations; r.phase = phase;
+  const v = e.verdict, got = r.spec.violations.map(x => x[0]);
+  r.spec.as_expected = v.completed === r.spec.completed && v.waited === r.spec.waited
+    && v.violations.length === got.length && v.violations.every(x => got.includes(x));
+  r.spec.expected = `${v.completed ? 'reaches the destination' : 'does not reach the destination'}; rules broken: ${v.violations.join(', ') || 'none'}; halted: ${v.waited.replace('_', ' ')}`;
+}
+
+// Compare this page's check with the one done by label.py / verify.py on the saved expectations.
+function selfCheck() {
+  const differ = [];
+  DATA.runs.forEach(r => {
+    const mine = EXP[r.key]; EXP[r.key] = clone(r.expect); evaluate(r);
+    const seconds = r.unexplained.reduce((s, u) => s + u[1] - u[0], 0);
+    const sameTimes = r.phases.length === r.py.reached.length && r.phases.every((p, k) =>
+      (p.t === null) === (r.py.reached[k] === null) && (p.t === null || Math.abs(p.t - r.py.reached[k]) < 0.06));
+    if (r.verdict !== r.py.verdict || !sameTimes || Math.abs(seconds - r.py.unexplained_s) > 0.06
+        || r.violations.length !== r.py.forbidden || r.timing.length !== r.py.timing
+        || r.spec.as_expected !== r.py.as_expected) differ.push(r.key);
+    EXP[r.key] = mine; evaluate(r);
+  });
+  return differ;
+}
 $('legend').innerHTML = GROUPS.map(g => `<span><i style="background:${groupColor(g)}"></i>${g}</span>`).join('')
   + '<span style="margin-left:auto"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> step &nbsp; <kbd>Shift</kbd>+arrow: jump to a label change &nbsp; <kbd>Space</kbd> play</span>';
 
 function selectRun(i) {
   run = DATA.runs[i]; frame = 0; stop();
   $('slider').max = run.t.length - 1;
-  const text = {match: '✓ matches the expected sequence', 'match*': '≈ reaches every milestone, with stretches the expectation does not explain',
-                MISMATCH: '✗ differs from the expected sequence'}[run.verdict];
+  $('story').textContent = run.story + (run.why_driver ? '  Driver: ' + run.why_driver : '');
+  renderExpectation();
+  show();
+}
+
+// Everything that depends on the expectation of the selected run: header lines and the card.
+const offBy = p => (p.at == null || p.t === null) ? '' : Math.abs(p.t - p.at) < 0.05 ? 'on time'
+  : `${Math.abs(p.t - p.at).toFixed(1)} s ${p.t > p.at ? 'later' : 'earlier'} than expected`;
+const isOff = p => p.at != null && p.t !== null && Math.abs(p.t - p.at) > DATA.tolerance + 1e-9;
+
+function renderExpectation() {
+  const text = {match: '✓ labels match the expected sequence',
+                'match*': '≈ labels reach every milestone, with stretches the expectation does not explain',
+                timing: '◷ labels follow the expected sequence, but a phase begins earlier or later than the time given for it',
+                MISMATCH: '✗ labels differ from the expected sequence',
+                none: '— no expected sequence has been written for this run yet'}[run.verdict];
   $('verdict').textContent = text;
   $('verdict').style.color = run.verdict === 'MISMATCH' ? css('--critical') : css('--ink');
-  $('story').textContent = run.story + (run.why_driver ? '  Driver: ' + run.why_driver : '');
   const sp = run.spec;
   const broken = sp.violations.length ? sp.violations.map(v => `<b>${v[0]}</b> at ${v[1].toFixed(1)} s`).join(', ') : 'none';
   $('ruling').innerHTML = `Automata: ${sp.completed ? '✓ reached the destination' : '✗ did not reach the destination (got as far as: ' + sp.progress + ')'}`
     + ` &middot; rules broken: ${broken} &middot; halted: <b>${sp.waited.replace('_', ' ')}</b> &middot; idle while free: ${sp.idle.toFixed(1)} s`
     + ` &middot; ${sp.as_expected ? '✓ the verdict expected for this run' : '✗ expected: ' + sp.expected}`;
-  $('phases').innerHTML = run.phases.map((p, k) => {
-    const when = p.t === null ? (p.optional ? 'skipped' : 'never') : p.t.toFixed(1) + ' s';
-    return `<li data-k="${k}" class="${p.t === null && !p.optional ? 'missed' : ''}" title="${p.literals}"><span class="when">${when}</span>${p.optional ? '(' + p.name + ')' : p.name}</li>`;
-  }).join('');
-  const notes = run.unexplained.map(u => `<li>⚠ ${u[0].toFixed(1)}&ndash;${u[1].toFixed(1)} s: labels fit neither the current nor the next expected phase</li>`)
-    .concat(run.violations.map(v => `<li>✗ from ${v[1].toFixed(1)} s for ${v[2].toFixed(1)} s: a combination expected never to occur [${v[0]}]</li>`));
-  $('notes').innerHTML = notes.join('');
+  $('expView').hidden = editing; $('expEdit').hidden = !editing;
+  if (editing) renderEditor();
+  else {
+    $('phases').innerHTML = run.phases.map((p, k) => {
+      const when = p.t === null ? (p.optional ? 'skipped' : 'never') : p.t.toFixed(1) + ' s';
+      const want = p.at == null ? '' : ` <small class="${isOff(p) ? 'missed' : ''}">(expected at ${p.at.toFixed(1)} s${p.t === null ? '' : ': ' + offBy(p)})</small>`;
+      return `<li data-k="${k}" class="${p.t === null && !p.optional ? 'missed' : ''}" title="${esc(p.literals)}"><span class="when">${when}</span>${p.optional ? '(' + esc(p.name) + ')' : esc(p.name)}${want}</li>`;
+    }).join('') || '<li style="list-style:none;margin-left:-20px;color:var(--muted)">Nothing written yet. Click Edit to describe what this run should show.</li>';
+    $('notes').innerHTML = run.unexplained.map(u => `<li>⚠ ${u[0].toFixed(1)}&ndash;${u[1].toFixed(1)} s: labels fit neither the current nor the next expected phase</li>`)
+      .concat(run.timing.map(x => `<li>⚠ phase ${x[0] + 1} is reached at ${x[2].toFixed(1)} s, but was expected at ${x[1].toFixed(1)} s (allowed: ${DATA.tolerance} s either way)</li>`))
+      .concat(run.violations.map(v => `<li>✗ from ${v[1].toFixed(1)} s for ${v[2].toFixed(1)} s: a combination expected never to occur [${esc(v[0])}]</li>`)).join('');
+    $('vView').innerHTML = `Expected verdict: ${sp.expected}.`;
+  }
+  updateBar();
+  markNow();
+}
+
+function updateBar() {
+  const changed = Object.keys(EXP).filter(k => JSON.stringify(EXP[k]) !== JSON.stringify(SAVED[k])).length;
+  $('bEdit').textContent = editing ? 'Done editing' : 'Edit';
+  $('bUndo').hidden = $('bRedo').hidden = !editing;
+  $('bUndo').disabled = !HISTORY.length; $('bRedo').disabled = !FUTURE.length;
+  $('bRevert').hidden = JSON.stringify(EXP[run.key]) === JSON.stringify(SAVED[run.key]);
+  $('bSave').hidden = $('bDiscard').hidden = !changed;
+  $('bSave').textContent = SERVER ? 'Save' : 'Download expectations.json';
+  $('saveNote').textContent = (changed ? `${changed} run${changed > 1 ? 's' : ''} changed, not saved. ` : '') + note;
+}
+
+// What depends on the selected moment: the phase the run is in, and which phases fit right now.
+function markNow() {
+  const bits = run.labels[frame], cur = run.phase[frame];
+  document.querySelectorAll('#phases li').forEach(li => li.classList.toggle('cur', +li.dataset.k === cur));
+  if (!editing) return;
+  document.querySelectorAll('#expEdit .nowT').forEach(el => el.textContent = run.t[frame].toFixed(1));
+  document.querySelectorAll('#expEdit .ph').forEach(div => {
+    const k = +div.dataset.k, ok = fits(bits, EXP[run.key].phases[k].labels), tag = div.querySelector('.fitTag');
+    div.classList.toggle('cur', k === cur);
+    tag.textContent = ok ? '✓ fits the selected moment' : '✗ does not fit the selected moment';
+    tag.className = 'fitTag ' + (ok ? 'yes' : 'no');
+  });
+}
+
+// ---- undo and redo -----------------------------------------------------------------------
+// Each step is the whole set of expectations as text. Typing in one box, or dragging one
+// marker, counts as a single step.
+let HISTORY = [], FUTURE = [], lastState = JSON.stringify(EXP), lastKind = '';
+function remember(kind) {
+  const now = JSON.stringify(EXP);
+  if (now === lastState) return;
+  if (!(kind && kind === lastKind)) { HISTORY.push(lastState); if (HISTORY.length > 200) HISTORY.shift(); }
+  FUTURE = []; lastState = now; lastKind = kind || '';
+}
+function restore(state) {
+  const data = JSON.parse(state);
+  Object.keys(EXP).forEach(k => EXP[k] = data[k]);
+  lastState = state; lastKind = ''; note = '';
+  keepLocal(); DATA.runs.forEach(evaluate); refreshOptions(); renderExpectation(); show();
+}
+function undo() { if (HISTORY.length) { FUTURE.push(lastState); restore(HISTORY.pop()); } }
+function redo() { if (FUTURE.length) { HISTORY.push(lastState); restore(FUTURE.pop()); } }
+
+// ---- the editor --------------------------------------------------------------------------
+// A list of labels, each required on or off. `where` names the list: p3 = phase 4, n0 = first 'never'.
+function litChips(labels, where) {
+  const lits = labels.split(' ').filter(Boolean), used = new Set(lits.map(l => l.replace('!', '')));
+  return `<div class="lits">` + lits.map((lit, q) => {
+      const off = lit.startsWith('!');
+      return `<span class="lit ${off ? 'off' : 'on'}"><a data-act="flip" data-where="${where}" data-q="${q}" title="Click to switch between must be on and must be off"><i>${off ? 'OFF' : 'ON'}</i>${lit.replace('!', '')}</a>`
+           + `<a class="x" data-act="drop" data-where="${where}" data-q="${q}" title="Remove from this list">×</a></span>`; }).join('')
+    + `<select data-act="add" data-where="${where}" title="Add a label. It starts with the value it has at the selected moment."><option value="">+ label…</option>`
+    + P.filter(p => !used.has(p.name)).map(p => `<option>${p.name}</option>`).join('') + `</select></div>`;
+}
+
+function renderEditor() {
+  const e = EXP[run.key], last = e.phases.length - 1, t0 = run.t[0], t1 = run.t[run.t.length - 1];
+  const phases = e.phases.map((p, k) => {
+    const rp = run.phases[k], t = rp.t;
+    const reach = t !== null
+      ? `labels reach it at <a data-act="seek" data-t="${t}" title="Go to this moment">${t.toFixed(1)} s</a>` + (p.at == null ? '' : `: <span class="${isOff(rp) ? 'missed' : ''}">${offBy(rp)}</span>`)
+      : p.optional ? 'skipped in this run' : '<b class="missed">never reached in this run</b>';
+    return `<div class="ph" data-k="${k}">
+      <div class="phTop"><span class="num">${k + 1}</span>
+        <input type="text" data-act="name" data-k="${k}" value="${esc(p.name)}" placeholder="The situation, in words" aria-label="Description of phase ${k + 1}">
+        <button data-act="insert" data-k="${k}" title="Insert a new phase before this one">+</button>
+        <button data-act="up" data-k="${k}" title="Move earlier" ${k ? '' : 'disabled'}>↑</button>
+        <button data-act="down" data-k="${k}" title="Move later" ${k < last ? '' : 'disabled'}>↓</button>
+        <button data-act="del" data-k="${k}" title="Delete this phase">✕</button></div>
+      <div class="phTime"><label>begins at <input type="number" data-act="at" data-k="${k}" step="0.1" min="${t0}" max="${t1}" value="${p.at == null ? '' : p.at}" placeholder="any time" aria-label="Expected start of phase ${k + 1}, in seconds"> s</label>
+        <button data-act="atNow" data-k="${k}" title="Set the expected start to the selected moment">use <span class="nowT"></span> s</button>
+        ${p.at == null ? '' : `<button data-act="atClear" data-k="${k}" title="Remove the expected start time">clear</button>`}
+        <span>${reach}</span></div>
+      ${litChips(p.labels, 'p' + k)}
+      <div class="phFoot"><label><input type="checkbox" data-act="opt" data-k="${k}" ${p.optional ? 'checked' : ''}> may be skipped</label><span class="fitTag"></span></div>
+    </div>`; }).join('');
+  const never = e.never.map((c, k) => `<div class="nv">${litChips(c, 'n' + k)}<button data-act="delNever" data-k="${k}" title="Delete this combination">✕</button></div>`).join('');
+  const v = e.verdict, sp = run.spec;
+  $('expEdit').innerHTML =
+      `<p class="hint">Move the time slider to the moment something changes, then add a phase there. Give it the labels that must be ON or OFF: a new label starts with the value it has at that moment, and a click flips it. Labels you leave out may be anything. A phase with a start time is also checked for when the labels reach it (allowed: ${DATA.tolerance} s either way); on the timeline its marker ▼ can be dragged.</p>`
+    + phases
+    + `<div class="adders"><button data-act="addHere" title="Add a phase that begins at the selected moment; it is put in the right place in the order">+ Add a phase at <span class="nowT"></span> s</button>`
+    + `<button data-act="addPhase" title="Add a phase with no start time after the last one">+ Add a phase at the end</button></div>`
+    + `<h3>Must never happen</h3><p class="hint">Combinations of labels that must not occur at any moment of this run.</p>`
+    + never + `<button data-act="addNever">+ Add a combination</button>`
+    + `<h3>Expected verdict of the automata</h3>`
+    + `<div class="row"><label><input type="checkbox" data-act="vdone" ${v.completed ? 'checked' : ''}> reaches the destination</label></div>`
+    + `<div class="row">breaks:` + DATA.rules.map(r => `<label><input type="checkbox" data-act="vrule" data-rule="${r}" ${v.violations.includes(r) ? 'checked' : ''}> ${r}</label>`).join('') + `</div>`
+    + `<div class="row"><label>comes to a halt: <select data-act="vwait">` + DATA.halts.map(h => `<option value="${h}" ${h === v.waited ? 'selected' : ''}>${h.replace('_', ' ')}</option>`).join('') + `</select></label></div>`
+    + `<div class="row">${sp.as_expected ? '✓ This is what the automata found.' : '✗ The automata found something else: ' + (sp.completed ? 'reaches the destination' : 'does not reach the destination') + '; rules broken: ' + (sp.violations.map(x => x[0]).join(', ') || 'none') + '; halted: ' + sp.waited.replace('_', ' ') + '.'}</div>`;
+}
+
+const getLits = where => where[0] === 'p' ? EXP[run.key].phases[+where.slice(1)].labels : EXP[run.key].never[+where.slice(1)];
+function setLits(where, text) {
+  if (where[0] === 'p') EXP[run.key].phases[+where.slice(1)].labels = text; else EXP[run.key].never[+where.slice(1)] = text;
+}
+// When a phase happens: the time written for it, otherwise the time the labels reach it.
+const timeOf = k => { const p = EXP[run.key].phases[k]; return p.at != null ? p.at : (run.phases[k] ? run.phases[k].t : null); };
+// Move phase k to where its start time belongs, so the list stays in time order. Returns its new place.
+function placeByTime(k) {
+  const list = EXP[run.key].phases, p = list[k];
+  if (p.at == null) return k;
+  const times = list.map((_, j) => timeOf(j));
+  list.splice(k, 1); times.splice(k, 1);
+  let pos = times.findIndex(t => t !== null && t > p.at);
+  if (pos < 0) pos = list.length;
+  list.splice(pos, 0, p);
+  return pos;
+}
+const clampTime = t => Math.round(Math.min(Math.max(t, run.t[0]), run.t[run.t.length - 1]) * 10) / 10;
+
+function edited(redraw = true, kind = '') {   // after any change: remember it, re-check, refresh
+  note = ''; remember(kind);
+  evaluate(run); keepLocal(); refreshOptions();
+  if (redraw) renderExpectation(); else updateBar();
   show();
 }
+$('expEdit').addEventListener('click', ev => {
+  const t = ev.target.closest('[data-act]');
+  if (!t || t.tagName === 'SELECT' || t.tagName === 'INPUT') return;
+  const e = EXP[run.key], act = t.dataset.act, k = +t.dataset.k;
+  if (act === 'seek') { stop(); go(run.t.indexOf(+t.dataset.t)); return; }
+  if (act === 'flip' || act === 'drop') {
+    const lits = getLits(t.dataset.where).split(' ').filter(Boolean), q = +t.dataset.q;
+    if (act === 'flip') lits[q] = lits[q].startsWith('!') ? lits[q].slice(1) : '!' + lits[q]; else lits.splice(q, 1);
+    setLits(t.dataset.where, lits.join(' '));
+  }
+  else if (act === 'up' && k > 0) [e.phases[k - 1], e.phases[k]] = [e.phases[k], e.phases[k - 1]];
+  else if (act === 'down' && k < e.phases.length - 1) [e.phases[k + 1], e.phases[k]] = [e.phases[k], e.phases[k + 1]];
+  else if (act === 'del') e.phases.splice(k, 1);
+  else if (act === 'insert') e.phases.splice(k, 0, {name: '', labels: '', optional: false});
+  else if (act === 'addPhase') e.phases.push({name: '', labels: '', optional: false});
+  else if (act === 'addHere') { e.phases.push({name: '', labels: '', optional: false, at: run.t[frame]}); placeByTime(e.phases.length - 1); }
+  else if (act === 'atNow') { e.phases[k].at = run.t[frame]; placeByTime(k); }
+  else if (act === 'atClear') delete e.phases[k].at;
+  else if (act === 'addNever') e.never.push('');
+  else if (act === 'delNever') e.never.splice(k, 1);
+  else return;
+  edited();
+});
+$('expEdit').addEventListener('change', ev => {
+  const t = ev.target, e = EXP[run.key], act = t.dataset.act;
+  if (act === 'add' && t.value) {          // a new label takes the value it has at the selected moment
+    const lit = on(run.labels[frame], pIndex[t.value]) ? t.value : '!' + t.value;
+    setLits(t.dataset.where, (getLits(t.dataset.where) + ' ' + lit).trim());
+  }
+  else if (act === 'at') {
+    const k = +t.dataset.k, value = parseFloat(t.value);
+    if (isNaN(value)) delete e.phases[k].at; else { e.phases[k].at = clampTime(value); placeByTime(k); }
+  }
+  else if (act === 'opt') e.phases[+t.dataset.k].optional = t.checked;
+  else if (act === 'vdone') e.verdict.completed = t.checked;
+  else if (act === 'vrule') e.verdict.violations = DATA.rules.filter(r => r === t.dataset.rule ? t.checked : e.verdict.violations.includes(r));
+  else if (act === 'vwait') e.verdict.waited = t.value;
+  else return;
+  edited();
+});
+$('expEdit').addEventListener('input', ev => {
+  const t = ev.target;                     // typing a description: no redraw, so the cursor stays in the box
+  if (t.dataset.act === 'name') { EXP[run.key].phases[+t.dataset.k].name = t.value; edited(false, 'name:' + run.key + ':' + t.dataset.k); }
+});
+
+function tidy() {                          // what gets saved: no empty rows, no nameless phases, no empty times
+  const out = clone(EXP);
+  Object.values(out).forEach(e => {
+    e.never = e.never.filter(c => c.trim());
+    e.phases.forEach(p => { p.name = p.name.trim() || 'unnamed phase'; if (p.at == null) delete p.at; });
+  });
+  return out;
+}
+async function save() {
+  const data = tidy();
+  if (SERVER) {
+    try {
+      const res = await fetch('api/expectations', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+      const answer = await res.json();
+      if (!res.ok || !answer.ok) throw new Error(answer.error || 'HTTP ' + res.status);
+      Object.keys(data).forEach(k => EXP[k] = data[k]);
+      SAVED = clone(EXP); DATA.stamp = answer.stamp;
+      lastState = JSON.stringify(EXP); lastKind = '';
+      note = 'Saved to semalpha/expectations.json.';
+    } catch (err) { note = 'Not saved: ' + err.message; }
+  } else {
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2) + '\n'], {type: 'application/json'}));
+    link.download = 'expectations.json'; link.click(); URL.revokeObjectURL(link.href);
+    note = 'Downloaded. Replace semalpha/expectations.json with that file to keep the changes.';
+  }
+  keepLocal(); DATA.runs.forEach(evaluate); refreshOptions(); renderExpectation(); show();
+}
+$('bEdit').onclick = () => { editing = !editing; renderExpectation(); show(); };
+$('bUndo').onclick = undo;
+$('bRedo').onclick = redo;
+$('bSave').onclick = save;
+$('bRevert').onclick = () => { EXP[run.key] = clone(SAVED[run.key]); edited(); note = 'This run is back to how it was saved. Undo brings your changes back.'; updateBar(); };
+$('bDiscard').onclick = () => {
+  Object.keys(EXP).forEach(k => EXP[k] = clone(SAVED[k]));
+  remember('');
+  note = 'All changes discarded. Undo brings them back.';
+  keepLocal(); DATA.runs.forEach(evaluate); refreshOptions(); renderExpectation(); show();
+};
 
 function show() {
   $('slider').value = frame;
@@ -229,7 +590,7 @@ function show() {
   }).join('');
   const why = run.why[frame];
   $('why').innerHTML = why.length ? why.map(w => `<li>${w}</li>`).join('') : '<li style="list-style:none;margin-left:-16px;color:var(--muted)">none at this moment</li>';
-  document.querySelectorAll('#phases li').forEach(li => li.classList.toggle('cur', +li.dataset.k === run.phase[frame]));
+  markNow();
   drawMap(); drawDfa(); drawTimeline();
 }
 
@@ -419,6 +780,12 @@ function drawTimeline() {
   }
   // stretches the expectation does not explain
   run.unexplained.forEach(u => { g.fillStyle = css('--warning'); g.globalAlpha = 0.28; g.fillRect(X(u[0]), AXIS - 6, Math.max(2, X(u[1]) - X(u[0])), h - AXIS + 2); g.globalAlpha = 1; });
+  // expected start times: a marker on the axis and a dashed line; red if the labels are off by more than allowed
+  run.phases.forEach((p, k) => { if (p.at === null) return;
+    const x = X(p.at), c = isOff(p) || (p.t === null && !p.optional) ? css('--critical') : css('--ink');
+    g.strokeStyle = c; g.lineWidth = 1; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(x, AXIS - 2); g.lineTo(x, autoTop() - AGAP + 2); g.stroke(); g.setLineDash([]);
+    g.fillStyle = c; g.beginPath(); g.moveTo(x - 5, AXIS - 9); g.lineTo(x + 5, AXIS - 9); g.lineTo(x, AXIS - 2); g.closePath(); g.fill();
+    if (p.t === null) { g.textAlign = 'left'; g.fillText(String(k + 1), x + 3, 21); } });
   // expected phases, numbered as in the side list
   run.phases.forEach((p, k) => { if (p.t === null) return;
     g.strokeStyle = css('--axis'); g.lineWidth = 1; g.beginPath(); g.moveTo(X(p.t), 16); g.lineTo(X(p.t), h - 4); g.stroke();
@@ -501,10 +868,42 @@ $('bPrevChange').onclick = () => { stop(); nextChange(-1); };
 $('bNextChange').onclick = () => { stop(); nextChange(1); };
 $('bPlay').onclick = play;
 let dragging = false;
-$('tl').onmousedown = e => { dragging = true; stop(); go(frameAt(e)[0]); };
-window.addEventListener('mouseup', () => dragging = false);
+// While editing, the marker of a phase's expected start can be dragged along the axis.
+let dragPhase = -1;
+function markerAt(ev) {
+  if (!editing) return -1;
+  const r = $('tl').getBoundingClientRect(), {X} = tlGeom(r.width), x = ev.clientX - r.left, y = ev.clientY - r.top;
+  if (y < AXIS - 14 || y > AXIS + 4) return -1;
+  let best = -1, nearest = 8;
+  EXP[run.key].phases.forEach((p, k) => { if (p.at == null) return; const d = Math.abs(X(p.at) - x); if (d < nearest) { nearest = d; best = k; } });
+  return best;
+}
+function timeAt(ev) {
+  const r = $('tl').getBoundingClientRect(), {t0, t1} = tlGeom(r.width);
+  return clampTime(t0 + (ev.clientX - r.left - GUTTER) / (r.width - GUTTER - 10) * (t1 - t0));
+}
+$('tl').onmousedown = e => {
+  stop();
+  dragPhase = markerAt(e);
+  if (dragPhase >= 0) { e.preventDefault(); return; }
+  dragging = true; go(frameAt(e)[0]);
+};
+window.addEventListener('mouseup', () => {
+  if (dragPhase >= 0) { placeByTime(dragPhase); dragPhase = -1; edited(); }   // one undo step for the whole drag
+  dragging = false;
+});
 $('tl').onmousemove = e => {
   const [i, k] = frameAt(e), tip = $('tip');
+  if (dragPhase >= 0) {                     // the replay follows the marker, so you see the moment you are choosing
+    const at = timeAt(e);
+    EXP[run.key].phases[dragPhase].at = at;
+    evaluate(run);
+    const box = document.querySelector(`#expEdit input[data-act="at"][data-k="${dragPhase}"]`);
+    if (box) box.value = at;
+    go(Math.max(0, run.t.findIndex(t => t >= at - 1e-9)));
+    return;
+  }
+  $('tl').style.cursor = markerAt(e) >= 0 ? 'ew-resize' : 'crosshair';
   if (dragging) go(i);
   if (k < 0 || k >= P.length + A.length) { tip.style.display = 'none'; return; }
   if (k < P.length) tip.textContent = `${run.t[i].toFixed(1)} s · ${P[k].name} is ${on(run.labels[i], k) ? 'true' : 'false'}`;
@@ -516,14 +915,23 @@ $('tl').onmousemove = e => {
 };
 $('tl').onmouseleave = () => $('tip').style.display = 'none';
 window.addEventListener('keydown', e => {
-  if (e.target.tagName === 'SELECT') return;
+  const typing = e.target.tagName === 'TEXTAREA' || (e.target.tagName === 'INPUT' && ['text', 'number'].includes(e.target.type));
+  if ((e.ctrlKey || e.metaKey) && !typing && editing) {      // inside a text box, Ctrl+Z keeps its usual meaning
+    if (e.key.toLowerCase() === 'z' && !e.shiftKey) { undo(); e.preventDefault(); return; }
+    if (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey)) { redo(); e.preventDefault(); return; }
+  }
+  if (['SELECT', 'INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) return;   // typing or using a control
   if (e.key === 'ArrowRight') { stop(); e.shiftKey ? nextChange(1) : go(frame + 1); e.preventDefault(); }
   if (e.key === 'ArrowLeft') { stop(); e.shiftKey ? nextChange(-1) : go(frame - 1); e.preventDefault(); }
   if (e.key === ' ') { play(); e.preventDefault(); }
 });
 window.addEventListener('resize', () => show());
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { selectRun(+sel.value); });
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => show());
+DATA.runs.forEach(evaluate);
+refreshOptions();
 selectRun(0);
+// Served by `python -m semalpha.serve`? Then Save writes the file; otherwise it downloads it.
+fetch('api/ping').then(r => r.ok ? r.json() : null).then(a => { if (a && a.ok) { SERVER = true; updateBar(); } }).catch(() => {});
 </script>
 </body>
 </html>

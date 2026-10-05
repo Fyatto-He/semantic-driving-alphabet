@@ -27,3 +27,6 @@ same_direction_deg: 60.0     # path_blocked ignores cars heading roughly along t
 
 # --- terminal ---
 goal_tolerance_m: 3.0
+
+# --- comparing with expectations (not used by any label) ---
+phase_time_tolerance_s: 0.5  # a phase that was given an expected time may be reached this much earlier or later

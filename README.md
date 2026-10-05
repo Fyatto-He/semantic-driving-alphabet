@@ -68,7 +68,8 @@ Three ideas hold it together:
 - **Expectations come first.** For every run there is a hand-written sequence of phases
   ("held at the stop line", "free to go", "crossing"), each listing which labels must be
   on or off. They were written before the labeling code, so comparing the two is a test of
-  the labels and not a description of them.
+  the labels and not a description of them. Expectations are edited in the inspector page
+  itself (section 5), not in code.
 
 Nothing here learns. There is no reinforcement learning and no trained policy yet.
 
@@ -150,7 +151,6 @@ Lines saying `Success.` and a `UserWarning` about `moveToXY` are normal.
 | `TypeError: argument of type 'NoneType' is not iterable`, with `ctypes.CDLL(None)` in the traceback | Step 4 was skipped. Run the patch script. |
 | `PermissionError ... smarts\assets\vehicles\tmp....py` | Same: run the patch script. |
 | The patch script prints `NOT APPLIED (source differs from SMARTS 2.0.1)` | A different SMARTS version is installed. Install the version in `requirements.txt`. |
-| `KeyError` mentioning a scenario, variant and driver when running step 2 of the pipeline | A run was added to the catalog without an entry in `semalpha/expected.py` (section 8). |
 | `FileNotFoundError ... outputs\runs\...json` | That run has not been simulated yet. Run pipeline step 1. |
 
 ## 4. Running the pipeline
@@ -187,6 +187,8 @@ to `outputs/traces/<scenario>/<variant>__<driver>.txt`, and prints one verdict p
 |---|---|
 | `match` | Every expected phase was reached in order, every frame fits the current or next phase, and no forbidden combination occurred. |
 | `match*` | Every expected phase was reached, but for some stretch the labels fit neither the current nor the next phase. Worth a look. |
+| `timing` | Every expected phase was reached in order, but one that was given a start time is reached more than 0.5 s earlier or later than that. |
+| `none` | Nothing has been written for this run yet. |
 | `MISMATCH` | An expected phase was never reached, or a combination listed as "never" occurred. |
 
 Useful variations:
@@ -213,14 +215,24 @@ run, compared with the verdict written down beforehand:
     .venv\Scripts\python -m semalpha.verify --set gap_margin_s=1       # judge with a different label threshold
     .venv\Scripts\python -m semalpha.verify --docs                     # regenerate docs/automata.md
 
-### Step 4: build the inspector (a few seconds)
+### Step 4: open the inspector
+
+To look at the runs **and edit what is expected of them**, start the inspector with saving
+switched on. It opens in your browser:
+
+    .venv\Scripts\python -m semalpha.serve
+
+The first page takes a few seconds while the runs are labelled. Leave the terminal open
+while you work and stop it with Ctrl+C. The server listens on this computer only.
+
+To just look, or to hand the page to someone who has not installed anything, build it as
+a single file instead:
 
     .venv\Scripts\python -m semalpha.inspector
 
-Writes `outputs/inspector.html`, one self-contained page with all runs. Open it by
-double-clicking it, or:
-
-    start outputs\inspector.html
+That writes `outputs/inspector.html`. Open it by double-clicking it. Everything works in
+the file version too, except that edited expectations are offered as a download instead of
+being saved into the project.
 
 To refresh the snapshot that is kept in the repository:
 
@@ -249,7 +261,8 @@ Writes `docs/figures/scenarios.png` (the maps and routes) and `docs/figures/trac
   going, its distance from the ego's path, its speed, who outranks whom, and whether the
   gap is sufficient. This is the reasoning behind `conflict_present`, `ego_has_priority`
   and `gap_safe` at that moment.
-- **Expected sequence**: the phases written for this run and when each was reached.
+- **Expected for this run**: the phases written for this run and when each was reached,
+  plus the verdict expected from the automata. Click **Edit** to change them (below).
 - **Automata: live state diagram**: a row of buttons, one per automaton, each showing the
   state that automaton is in at this moment (a broken rule in red). Click one to draw it as
   a graph that updates as you step through the run:
@@ -261,6 +274,63 @@ Writes `docs/figures/scenarios.png` (the maps and routes) and `docs/figures/trac
 - **Timeline at the bottom**: one row per label, a bar wherever it is on. Numbered lines
   mark the expected phases; shaded bands are unexplained stretches. Below the labels, one
   band per automaton shows its state over time. Click or drag to jump.
+
+### Editing what a run is expected to show
+
+Start `python -m semalpha.serve`, pick a run, and click **Edit** in the "Expected for this
+run" card. The map stays in view while you edit, and every change is re-checked against
+the recorded run immediately: the header, the timeline and the run's mark in the dropdown
+all update as you go.
+
+- **A phase** is one stretch of the run, described in words, with the labels that must be
+  ON or OFF during it. Labels you leave out may be anything.
+  - Type the description in the box.
+  - **+ label...** adds a label. It starts with the value it has at the selected moment, so
+    first move the time slider to the moment the phase should describe.
+  - Click a label to flip it between ON and OFF; click its `x` to remove it.
+  - The `+` button inserts a new phase before this one, the arrows move the phase earlier
+    or later, and the cross deletes it.
+  - **may be skipped** marks an in-between phase that a run need not pass through.
+  - You see whether the phase fits the moment you have selected.
+- **When a phase begins.** A phase may be given the time at which you expect it to begin.
+  The check then also says whether the labels reach the phase at that time, allowing
+  0.5 s either way (`phase_time_tolerance_s` in `thresholds.yaml`). Three ways to set it:
+  - type the seconds into **begins at**;
+  - click **use ... s** to take the selected moment;
+  - drag the phase's marker (a small triangle on the timeline's axis). The replay follows
+    the marker while you drag, so you can see the moment you are choosing.
+
+  Next to it you see when the labels actually reach the phase, and how far off that is.
+  Click that time to jump there. **clear** removes the expected time again. A phase that
+  is given a time moves to its place in the order by itself.
+- **+ Add a phase at ... s** adds a phase that begins at the selected moment, in the right
+  place in the order. **+ Add a phase at the end** appends one without a time. Phases are
+  checked in the order listed.
+- **Must never happen** lists label combinations that must not occur at any moment.
+- **Expected verdict of the automata**: whether the ego reaches its destination, which
+  rules it breaks, and where it comes to a halt. The line below tells you whether that is
+  what the automata actually found.
+
+Taking changes back:
+
+| Button | What it does |
+|---|---|
+| **Undo** (Ctrl+Z) | Takes back the last change. Press again to go further back. Typing in one box, or one drag, counts as a single step. |
+| **Redo** (Ctrl+Y) | Puts back what Undo just took away. |
+| **Revert this run** | Puts the selected run back to how it was last saved. Other runs keep their edits. |
+| **Discard all changes** | Puts every run back to how it was last saved. |
+
+Revert and Discard can themselves be undone.
+
+**Save** appears as soon as something differs from the saved file, with a count of the
+runs you have edited. It writes `semalpha/expectations.json`; from then on
+`semalpha.label` and `semalpha.verify` use the new expectations. Unsaved edits survive a
+reload of the page. In the single-file version of the inspector the button reads
+**Download expectations.json**: put the downloaded file at `semalpha/expectations.json`
+to keep the changes.
+
+A tester who should not be influenced by the current labels can ignore the timeline and
+write phases from the map alone; there is no mode yet that hides the labels.
 
 ### A label sequence as text
 
@@ -393,7 +463,8 @@ The step-by-step description of what a human driver notices in each variant is i
 ## 9. Changing things
 
 After any change below, run pipeline steps 2 to 4 again. Step 1 is needed only where
-noted.
+noted. To change what a run is expected to show, see "Editing what a run is expected to
+show" in section 5.
 
 ### Change a threshold
 
@@ -414,7 +485,7 @@ def ego_fast(v: View) -> bool:
 
 and its number to `semalpha/thresholds.yaml` (`fast_speed: 10.0`). The label then appears
 in every trace, in the statistics and in the inspector. To remove a label, delete its
-function; if an expectation in `expected.py` mentions it, remove it there too. The
+function; if an expectation mentions it, remove it there too (in the inspector). The
 inspector supports at most 31 labels.
 
 ### Add or change a rule automaton
@@ -437,8 +508,8 @@ dont_block_the_exit = Automaton(
 )
 ```
 
-Add it to the `AUTOMATA` list. If it changes what a run should be judged as, update
-`EXPECTED_VERDICT` in `semalpha/expected.py`.
+Add it to the `AUTOMATA` list. If it changes what a run should be judged as, update the
+expected verdict of that run in the inspector (section 5).
 
 ### Add a scenario variant (needs step 1 for the new runs)
 
@@ -457,11 +528,10 @@ Add it to the `AUTOMATA` list. If it changes what a run should be judged as, upd
    A `Car` is given by its route (edge names, first to last) and departure time. A
    `Script` is a cruising speed plus optional `Hold`s: stop at the entry line or the
    in-junction waiting point until a given time.
-2. Add one entry per driver to both `EXPECTED` (the label sequence) and
-   `EXPECTED_VERDICT` (the automata's verdict) in `semalpha/expected.py`, keyed by
-   `(scenario, variant, driver)`. Write them before looking at the results.
-3. Simulate it: `.venv\Scripts\python -m semalpha.run <scenario> late_car`, and check the
+2. Simulate it: `.venv\Scripts\python -m semalpha.run <scenario> late_car`, and check the
    printed raw facts to see that the staging does what you intended.
+3. Open the inspector (`python -m semalpha.serve`), select the new runs, and write what
+   each is expected to show. Until you do, a run is listed as having no expectation.
 
 ### Add a map (needs step 1)
 
@@ -487,13 +557,15 @@ semalpha/                  the Python package (short for "semantic alphabet")
   relations.py             layer 2: relational facts for one frame
   predicates.py            layer 3: the 19 labels
   thresholds.yaml          every tunable number
-  expected.py              the expected label sequence and expected verdict of every run
+  expectations.json        what every run is expected to show (edited in the inspector)
+  expected.py              loads and checks expectations.json
   label.py                 step 2: label, compare, statistics
   automata.py              what an automaton is and how it reads labels
   rules.py                 the rule set: eight small automata
   verify.py                step 3: run the automata, compare verdicts
   inspector.py             step 4: builds the inspector page
   inspector.html           the inspector's page template
+  serve.py                 step 4: serves the inspector so edits can be saved
   plot.py                  figures
 docs/
   traces.md                what a human driver notices in each scenario

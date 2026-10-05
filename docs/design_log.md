@@ -143,3 +143,52 @@ labels were developed on.
 
 Labels no automaton needs so far: `approaching_junction`, `others_can_yield`,
 `path_blocked`, `exit_clear`.
+
+## 2026-10-05: Expectations become data, edited in the inspector
+
+The user wants human testers to be able to change what a run is expected to show without
+editing code or text files.
+
+- **Expectations moved from Python to `semalpha/expectations.json`**, one entry per run
+  with its phases, its never-combinations and its expected verdict. The conversion was
+  mechanical; label and verdict results are identical before and after (23 match and
+  3 partial; 26 of 26 verdicts). `expected.py` now only loads and checks the file.
+  The shared building blocks of the Python version (`UP`, `CROSS`, ...) are expanded, so
+  each run's phases are now independent: changing one run no longer changes others.
+- **The inspector edits them.** Phases can be added, renamed, reordered, deleted and marked
+  optional; labels are added from a list and flipped ON/OFF by clicking; a new label takes
+  the value it has at the selected moment. Never-combinations and the expected verdict are
+  edited the same way.
+- **The page re-checks every edit itself**, with the same phase-walking rule as `label.py`
+  written a second time in JavaScript. `selfCheck()` in the page compares the two on all
+  runs; they agree on all 26. Two implementations of one rule is a risk: if `compare` in
+  `label.py` is changed, the page's `evaluate` must be changed with it.
+- **Saving.** `python -m semalpha.serve` serves the page on this computer and writes
+  edits to `expectations.json`. The single-file page cannot write files, so it offers the
+  edited file as a download. Unsaved edits are kept in the browser across reloads, tied to
+  the version of the file they were based on.
+- A run with nothing written is reported as having no expectation instead of failing.
+- **Not done:** a mode that hides the current labels from a tester, so that expectations
+  are written blind. Without it, a tester can see what the labels do while writing what
+  they should do.
+
+## 2026-10-05: Editor: taking changes back, expected times, phases anywhere
+
+Asked for by the user after trying the editor.
+
+- **Undo and redo**, plus **Revert this run**; "Discard changes" became "Discard all
+  changes". Before, the only way back was to discard every edit in every run.
+- **A phase can carry the time it is expected to begin** (`at`, in seconds). The comparison
+  still walks the phases in order by their labels; a phase with a time is additionally
+  checked for being reached within `phase_time_tolerance_s` (0.5 s) of it. A run that is
+  right in order but off in time gets the new verdict `timing`. This lets a tester say
+  not only what should be true but when the situation changes, which is the question the
+  project asks of the labels.
+- **Times are optional.** No existing expectation has one, so all results are unchanged
+  (23 match, 3 partial). Times should come from testers, not be filled in from what the
+  labels already do.
+- **Phases can be added anywhere**: inserted before any phase, or added at the selected
+  moment, where they take their place in time order. Before, a new phase could only be
+  appended and then moved up one step at a time.
+- The time of a phase can be typed, taken from the selected moment, or set by dragging its
+  marker on the timeline.

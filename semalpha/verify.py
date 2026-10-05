@@ -129,7 +129,7 @@ def write_docs(results, out=ROOT / "docs" / "automata.md") -> None:
         "## Verdicts on the recorded runs",
         "",
         f"{agree} of {len(results)} verdicts agree with the ones written down beforehand "
-        "(`EXPECTED_VERDICT` in `semalpha/expected.py`).",
+        "(the `verdict` entries in `semalpha/expectations.json`).",
         "",
         "| Scenario | Variant | Driver | Completed | Rules broken | Halted | Idle while free | As expected |",
         "|---|---|---|:-:|---|---|--:|:-:|",

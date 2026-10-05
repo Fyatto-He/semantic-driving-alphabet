@@ -82,6 +82,8 @@ class Match:
         return sum(b - a for a, b in self.unexplained)
 
     optional: List[bool] = field(default_factory=list)
+    empty: bool = False                                  # nothing has been written for this run yet
+    timing: List[Tuple[int, float, float]] = field(default_factory=list)   # (phase, expected second, second reached)
 
     @property
     def missed(self) -> int:
@@ -89,33 +91,43 @@ class Match:
 
     @property
     def verdict(self) -> str:
+        if self.empty:
+            return "none"
         if self.missed or self.violations:
             return "MISMATCH"
+        if self.timing:
+            return "timing"
         return "match" if not self.unexplained else "match*"
 
 
-def compare(trace: Trace, expectation: Expectation) -> Match:
+def compare(trace: Trace, expectation: Expectation, tolerance: float = 0.5) -> Match:
     """Walk the frames through the expected phases in order.
 
     A frame belongs to the current phase, or moves on to the next one as soon as it fits
     it. A frame that fits neither is 'unexplained': the labels did something the
-    expectation does not describe.
+    expectation does not describe. A phase that was given an expected time is also checked
+    for being reached within `tolerance` seconds of it.
+
+    The inspector page repeats this rule in JavaScript (`evaluate` in inspector.html) so
+    that it can re-check edits at once. Change one and you must change the other.
     """
     dt = trace.run.dt
     phases = expectation.phases
+    if not phases and not expectation.never:
+        return Match([], [-1] * len(trace.times), empty=True)
     reached: List[Optional[float]] = [None] * len(phases)
     assigned, unexplained = [], []
     i = -1
     for t, labels in zip(trace.times, trace.labels):
         # the next phase, or a later one if every phase skipped over is optional
         nxt = i + 1
-        while nxt < len(phases) and not satisfies(labels, phases[nxt][1]) and len(phases[nxt]) > 2:
+        while nxt < len(phases) and not satisfies(labels, phases[nxt].labels) and phases[nxt].optional:
             nxt += 1
-        if nxt < len(phases) and satisfies(labels, phases[nxt][1]):
+        if nxt < len(phases) and satisfies(labels, phases[nxt].labels):
             i = nxt
             reached[i] = t
             assigned.append(i)
-        elif i >= 0 and satisfies(labels, phases[i][1]):
+        elif i >= 0 and satisfies(labels, phases[i].labels):
             assigned.append(i)
         else:
             assigned.append(-1)
@@ -128,7 +140,9 @@ def compare(trace: Trace, expectation: Expectation) -> Match:
         hits = [t for t, labels in zip(trace.times, trace.labels) if satisfies(labels, combo)]
         if hits:
             violations.append((combo, hits[0], len(hits) * dt))
-    return Match(reached, assigned, unexplained, violations, [len(p) > 2 for p in phases])
+    timing = [(k, p.at, reached[k]) for k, p in enumerate(phases)
+              if p.at is not None and reached[k] is not None and abs(reached[k] - p.at) > tolerance + 1e-9]
+    return Match(reached, assigned, unexplained, violations, [p.optional for p in phases], timing=timing)
 
 
 # ---- text output -------------------------------------------------------------------------
@@ -150,11 +164,14 @@ def format_trace(trace: Trace) -> str:
 
 def format_match(trace: Trace, expectation: Expectation, match: Match) -> str:
     lines = []
-    for phase, t in zip(expectation.phases, match.reached):
-        name, literals = phase[0], phase[1]
-        if len(phase) > 2:
+    for i, (phase, t) in enumerate(zip(expectation.phases, match.reached)):
+        name, literals = phase.name, phase.labels
+        if phase.optional:
             name = f"({name})"
-        when = ("skipped" if len(phase) > 2 else "NEVER  ") if t is None else f"{t:6.1f}s"
+        if phase.at is not None:
+            off = any(k == i for k, _, _ in match.timing)
+            name += f"  <expected at {phase.at:.1f}s{': TIMING OFF' if off else ''}>"
+        when = ("skipped" if phase.optional else "NEVER  ") if t is None else f"{t:6.1f}s"
         lines.append(f"  {when}  {name:<58} [{literals}]")
     for a, b in match.unexplained:
         lines.append(f"  unexplained {a:.1f}-{b:.1f}s: labels fit neither the current nor the next expected phase")
@@ -217,7 +234,7 @@ def main(argv) -> int:
                 trace = label_run(Run.load(run_file(scenario.name, variant.name, driver)), thresholds)
                 traces.append(trace)
                 expectation = EXPECTED[(scenario.name, variant.name, driver)]
-                match = compare(trace, expectation)
+                match = compare(trace, expectation, thresholds.phase_time_tolerance_s)
                 counts[match.verdict] = counts.get(match.verdict, 0) + 1
                 required = match.optional.count(False)
                 head = (f"{match.verdict:<9}{scenario.name:<16}{variant.name:<22}{driver:<20}"
@@ -226,6 +243,8 @@ def main(argv) -> int:
                     head += f", unexplained {match.unexplained_s:.1f}s"
                 if match.violations:
                     head += f", forbidden x{len(match.violations)}"
+                if match.timing:
+                    head += f", timing off x{len(match.timing)}"
                 body = f"EXPECTED\n{format_match(trace, expectation, match)}\nACTUAL\n{format_trace(trace)}"
                 if not overridden:   # trial thresholds do not overwrite the saved traces
                     out = OUTPUTS / "traces" / scenario.name / f"{variant.name}__{driver}.txt"

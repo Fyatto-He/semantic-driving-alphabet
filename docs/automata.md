@@ -117,7 +117,7 @@ stateDiagram-v2
 
 ## Verdicts on the recorded runs
 
-26 of 26 verdicts agree with the ones written down beforehand (`EXPECTED_VERDICT` in `semalpha/expected.py`).
+26 of 26 verdicts agree with the ones written down beforehand (the `verdict` entries in `semalpha/expectations.json`).
 
 | Scenario | Variant | Driver | Completed | Rules broken | Halted | Idle while free | As expected |
 |---|---|---|:-:|---|---|--:|:-:|

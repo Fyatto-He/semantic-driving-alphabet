@@ -1,195 +1,48 @@
-"""Expected label sequences, written from the human traces in docs/traces.md.
+"""What each run is expected to show, stored in expectations.json.
 
-These were written BEFORE the labeling functions, so comparing them with the labels
-actually produced is a test of the vocabulary rather than a description of it.
+Two things are expected of every run, keyed by "scenario/variant/driver":
 
-An expectation is an ordered list of *phases*. A phase names the driver's situation and
-lists the propositions that must be true (``name``) or false (``!name``) during it;
-anything not listed is free. A run matches when its frames pass through the phases in
-order. ``never`` lists combinations that must not occur in any frame.
+* a **label sequence**: an ordered list of phases. A phase names the driver's situation
+  and lists the labels that must be on (``name``) or off (``!name``) during it; labels not
+  listed are free. A phase may be optional, and may carry the time at which it is expected
+  to begin. ``never`` lists combinations that must not occur in any frame. label.py checks
+  the labels against this.
+* a **verdict**: whether the ego reaches its destination, which rules it breaks, and
+  where it comes to a halt. verify.py checks the rule automata against this.
 
-Revisions after the first comparison (see docs/design_log.md):
-- optional in-between phases (`opt`) were added for the moments between two milestones,
-  such as moving off the line;
-- roundabout/cut_in was restaged and now ends in a crash, so its last milestone is `collision`;
-- t_stop_left/overcautious: "the road is free" no longer requires `!conflict_present`,
-  because `gap_safe` turns true 0.4 s before the last car counts as having passed.
-No other milestone and no forbidden combination was changed.
+Edit expectations in the inspector (``python -m semalpha.serve``), not here: the page
+checks every change against the recorded run as you make it and saves to
+expectations.json. The file is plain JSON and can also be edited by hand.
+
+The first version of every expectation was written before the code it tests (the label
+sequences before the labeling functions, the verdicts before the automata). The history
+is in docs/design_log.md.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from pathlib import Path
+from typing import Dict, Optional, Tuple
 
-Phase = Tuple   # (situation in words, literals) or, for an optional phase, (situation, literals, True)
+FILE = Path(__file__).with_name("expectations.json")
+Key = Tuple[str, str, str]            # (scenario, variant, driver)
 
 
-def opt(name: str, literals: str) -> Phase:
-    """An in-between phase that a run may pass through or skip."""
-    return (name, literals, True)
+@dataclass(frozen=True)
+class Phase:
+    name: str                         # the situation, in words
+    labels: str                       # labels that must be on ("name") or off ("!name")
+    optional: bool = False            # a run may skip this phase
+    at: Optional[float] = None        # second at which the phase is expected to begin, if one was given
 
 
 @dataclass(frozen=True)
 class Expectation:
-    phases: Tuple[Phase, ...]
+    phases: Tuple[Phase, ...] = ()
     never: Tuple[str, ...] = ()
 
-
-# ---- building blocks -----------------------------------------------------------------
-UP = ("driving up to the junction", "!in_junction !ego_stopped")
-CROSS = ("crossing the junction", "in_junction")
-OUT = ("out of the junction", "!in_junction !at_entry_line")
-DONE = ("destination reached", "goal_reached")
-MOVING_OFF = opt("moving off the line", "at_entry_line !ego_stopped")
-NOSING_IN = opt("inside, still short of anyone else's path", "in_junction in_waiting_area")
-REST = opt("crossing the rest of the junction", "in_junction")
-
-# Past the point of no return while a car that outranks the ego is too close.
-UNSAFE = "in_junction !in_waiting_area conflict_present !ego_has_priority !gap_safe"
-SAFE = ("collision", "off_road", UNSAFE)
-
-HELD_AT_LINE = "at_entry_line ego_stopped conflict_present !ego_has_priority !gap_safe"
-FREE_AT_LINE = ("at the line, free to go", "at_entry_line gap_safe")
-IN_WAITING_AREA = "in_waiting_area conflict_present !ego_has_priority !gap_safe"
-
-EXPECTED: Dict[Tuple[str, str, str], Expectation] = {
-    # ---- A. left turn out of the stop-controlled side road ------------------------------
-    ("t_stop_left", "clear", "sumo"): Expectation(
-        (UP,
-         ("stopped at the stop line, road empty", "at_entry_line ego_stopped stop_sign !conflict_present gap_safe"),
-         FREE_AT_LINE, ("crossing, nobody around", "in_junction !conflict_present"), OUT, DONE),
-        never=SAFE),
-    ("t_stop_left", "clear", "roll_through"): Expectation(
-        (UP, ("at the stop line, still moving", "at_entry_line stop_sign !ego_stopped"), CROSS, OUT, DONE),
-        never=("at_entry_line ego_stopped", "collision")),
-    ("t_stop_left", "wait_for_gap", "sumo"): Expectation(
-        (UP, ("held at the stop line by traffic that outranks me", HELD_AT_LINE + " stop_sign"),
-         FREE_AT_LINE, CROSS, OUT, DONE),
-        never=SAFE),
-    ("t_stop_left", "wait_for_gap", "enter_too_early"): Expectation(
-        (UP, ("held at the stop line", HELD_AT_LINE), MOVING_OFF, NOSING_IN,
-         ("pulled out in front of a car that outranks me", UNSAFE), REST, OUT, DONE)),
-    ("t_stop_left", "wait_for_gap", "overcautious"): Expectation(
-        (UP, ("held at the stop line", HELD_AT_LINE),
-         ("still stopped although the gap is sufficient", "at_entry_line ego_stopped gap_safe"),
-         MOVING_OFF, CROSS, OUT, DONE),
-        never=SAFE),
-    ("t_stop_left", "gap_closes", "sumo"): Expectation(
-        (UP, ("held at the stop line; the short opening is not enough", HELD_AT_LINE),
-         FREE_AT_LINE, CROSS, OUT, DONE),
-        never=SAFE),
-    ("t_stop_left", "other_turns_off", "sumo"): Expectation(
-        (UP, ("at the stop line; the other car might cross my path", HELD_AT_LINE), MOVING_OFF, NOSING_IN,
-         ("entered anyway (the simulator's driver knows the other car's route)", UNSAFE),
-         ("the other car is visibly turning off", "in_junction !conflict_present"), OUT, DONE),
-        never=("collision",)),
-    ("t_stop_left", "other_turns_off", "wait_until_it_turns"): Expectation(
-        (UP, ("at the stop line; the other car might cross my path", HELD_AT_LINE),
-         ("the other car is visibly turning off", "at_entry_line !conflict_present gap_safe"),
-         CROSS, OUT, DONE),
-        never=SAFE),
-
-    # ---- B. unprotected left turn from the main road -------------------------------------
-    ("t_major_left", "clear", "sumo"): Expectation(
-        (UP, ("crossing, nobody around", "in_junction !conflict_present !ego_stopped"), OUT, DONE),
-        never=SAFE + ("ego_stopped", "stop_sign")),
-    ("t_major_left", "oncoming_then_gap", "sumo"): Expectation(
-        (UP, ("pulling into the waiting area", IN_WAITING_AREA),
-         ("held in the waiting area by oncoming traffic", IN_WAITING_AREA + " ego_stopped"),
-         ("gap opens", "in_junction gap_safe"), OUT, DONE),
-        never=SAFE + ("stop_sign",)),
-    ("t_major_left", "oncoming_then_gap", "wait_in_junction"): Expectation(
-        (UP, ("pulling into the waiting area", IN_WAITING_AREA),
-         ("held in the waiting area by oncoming traffic", IN_WAITING_AREA + " ego_stopped"),
-         ("gap opens", "in_junction gap_safe"), OUT, DONE),
-        never=SAFE),
-    ("t_major_left", "oncoming_then_gap", "turn_across"): Expectation(
-        (UP, NOSING_IN, ("turning across a car that outranks me", UNSAFE), ("crash", "collision"))),
-    ("t_major_left", "minor_car_waiting", "sumo"): Expectation(
-        (UP,
-         ("a side-road car owes me priority and can still stop",
-          "!in_junction conflict_present ego_has_priority others_can_yield"),
-         ("crossing with priority", "in_junction ego_has_priority"), OUT, DONE),
-        never=("collision", "off_road", "ego_stopped", "conflict_present !ego_has_priority")),
-    ("t_major_left", "oncoming_turns_right", "sumo"): Expectation(
-        (UP, ("pulling into the waiting area", IN_WAITING_AREA),
-         ("held in the waiting area; its path merges with mine", IN_WAITING_AREA + " ego_stopped"),
-         ("gap opens", "in_junction gap_safe"), OUT, DONE),
-        never=SAFE),
-
-    # ---- C. signalized four-way ---------------------------------------------------------
-    ("signal_straight", "green", "sumo"): Expectation(
-        (UP, ("approaching on green", "signal_go !in_junction !ego_stopped"),
-         ("crossing on green", "in_junction signal_go"), OUT, DONE),
-        never=SAFE + ("ego_stopped", "signal_stop", "signal_caution")),
-    ("signal_straight", "red_then_green", "sumo"): Expectation(
-        (UP, ("approaching on red, room to stop", "signal_stop !in_junction can_stop_before_entry"),
-         ("stopped at the line on red", "at_entry_line ego_stopped signal_stop"),
-         ("green, still at the line", "at_entry_line signal_go"),
-         ("crossing on green", "in_junction signal_go"), OUT, DONE),
-        never=SAFE + ("in_junction signal_stop",)),
-    ("signal_straight", "red_then_green", "run_red"): Expectation(
-        (UP, ("approaching on red", "signal_stop !in_junction"),
-         ("inside on red while cross traffic outranks me", "in_junction signal_stop conflict_present !ego_has_priority"),
-         OUT, DONE)),
-    ("signal_straight", "yellow_far", "sumo"): Expectation(
-        (UP, ("approaching on green", "signal_go !in_junction"),
-         ("yellow, room to stop", "signal_caution !in_junction can_stop_before_entry"),
-         opt("red, still rolling up to the line", "signal_stop !in_junction !ego_stopped"),
-         ("stopped at the line on red", "at_entry_line ego_stopped signal_stop"),
-         ("green, still at the line", "at_entry_line signal_go"),
-         ("crossing on green", "in_junction signal_go"), OUT, DONE),
-        never=SAFE + ("in_junction signal_stop", "in_junction signal_caution")),
-    ("signal_straight", "yellow_near", "sumo"): Expectation(
-        (UP, ("approaching on green", "signal_go !in_junction"),
-         ("yellow, no room to stop", "signal_caution !in_junction !can_stop_before_entry"),
-         ("crossing on yellow", "in_junction signal_caution"), OUT, DONE),
-        never=SAFE + ("ego_stopped", "signal_caution can_stop_before_entry")),
-    ("signal_left", "oncoming_then_gap", "sumo"): Expectation(
-        (UP, ("green; pulling into the waiting area", IN_WAITING_AREA + " signal_go"),
-         ("held in the waiting area by oncoming traffic", IN_WAITING_AREA + " ego_stopped signal_go"),
-         ("gap opens", "in_junction gap_safe"), OUT, DONE),
-        never=SAFE),
-
-    # ---- D. roundabout ------------------------------------------------------------------
-    ("roundabout", "empty", "sumo"): Expectation(
-        (UP, ("on the ring, nobody around", "in_junction !conflict_present"), OUT, DONE),
-        never=SAFE + ("ego_stopped", "stop_sign", "conflict_present")),
-    ("roundabout", "yield_to_circulating", "sumo"): Expectation(
-        (UP, ("held at the yield line by a car on the ring", HELD_AT_LINE + " !stop_sign"),
-         FREE_AT_LINE, CROSS, OUT, DONE),
-        never=SAFE),
-    ("roundabout", "yield_to_circulating", "cut_in"): Expectation(
-        (UP, ("a ring car that outranks me is too close", "!in_junction conflict_present !ego_has_priority !gap_safe"),
-         NOSING_IN, ("entered in front of it", UNSAFE), ("crash", "collision"))),
-    ("roundabout", "circulating_exits", "sumo"): Expectation(
-        (UP, ("a ring car might pass in front of me", "!in_junction conflict_present !ego_has_priority !gap_safe"),
-         NOSING_IN, ("entered anyway (the simulator's driver knows the other car's route)", UNSAFE),
-         ("the other car has visibly left the ring", "in_junction !conflict_present"), OUT, DONE),
-        never=("collision",)),
-    ("roundabout", "circulating_exits", "wait_until_it_exits"): Expectation(
-        (UP, ("a ring car might pass in front of me", "!in_junction conflict_present !ego_has_priority !gap_safe"),
-         ("the other car has visibly left the ring", "at_entry_line !conflict_present gap_safe"),
-         CROSS, OUT, DONE),
-        never=SAFE),
-    ("roundabout", "entering_car_yields", "sumo"): Expectation(
-        (UP, ("on the ring", "in_junction"),
-         ("a car at the next entry owes me priority and can still stop",
-          "in_junction conflict_present ego_has_priority others_can_yield"),
-         REST, OUT, DONE),
-        never=("collision", "off_road", "ego_stopped", "conflict_present !ego_has_priority")),
-}
-
-
-# ==========================================================================================
-# Expected verdicts of the rule automata (semalpha/rules.py)
-#
-# Written BEFORE the automata, from what each run was staged to show. For every run:
-#   completed  - does the ego get through the junction and reach its destination?
-#   violations - which rules does it break?
-#   waited     - where does it come to a halt on the way: nowhere, at_line, inside
-#                (in the waiting area inside the junction), or both?
-# ==========================================================================================
 
 @dataclass(frozen=True)
 class Verdict:
@@ -198,48 +51,89 @@ class Verdict:
     waited: str = "nowhere"
 
 
-STOP_SIGN = "stop_at_stop_sign"
-RED = "obey_red_signal"
-YELLOW = "stop_on_yellow_when_able"
-RIGHT_OF_WAY = "respect_right_of_way"
-COLLISION = "no_collision"
-OFF_ROAD = "stay_on_road"
+class _Table(dict):
+    """A dict that answers with an empty expectation for a run nobody has described yet."""
 
-EXPECTED_VERDICT: Dict[Tuple[str, str, str], Verdict] = {
-    # A. stop-sign left turn: a lawful run always halts at the line
-    ("t_stop_left", "clear", "sumo"): Verdict(waited="at_line"),
-    ("t_stop_left", "clear", "roll_through"): Verdict(violations=(STOP_SIGN,)),
-    ("t_stop_left", "wait_for_gap", "sumo"): Verdict(waited="at_line"),
-    ("t_stop_left", "wait_for_gap", "enter_too_early"): Verdict(violations=(RIGHT_OF_WAY,), waited="at_line"),
-    ("t_stop_left", "wait_for_gap", "overcautious"): Verdict(waited="at_line"),
-    ("t_stop_left", "gap_closes", "sumo"): Verdict(waited="at_line"),
-    # the simulator's driver knows the other car will turn off; judged on what is visible, it enters too early
-    ("t_stop_left", "other_turns_off", "sumo"): Verdict(violations=(RIGHT_OF_WAY,), waited="at_line"),
-    ("t_stop_left", "other_turns_off", "wait_until_it_turns"): Verdict(waited="at_line"),
+    def __init__(self, empty):
+        super().__init__()
+        self._empty = empty
 
-    # B. unprotected left from the main road: no stop owed; waiting happens inside the junction
-    ("t_major_left", "clear", "sumo"): Verdict(),
-    ("t_major_left", "oncoming_then_gap", "sumo"): Verdict(waited="inside"),
-    ("t_major_left", "oncoming_then_gap", "turn_across"): Verdict(
-        completed=False, violations=(RIGHT_OF_WAY, COLLISION)),
-    ("t_major_left", "oncoming_then_gap", "wait_in_junction"): Verdict(waited="inside"),
-    ("t_major_left", "minor_car_waiting", "sumo"): Verdict(),
-    ("t_major_left", "oncoming_turns_right", "sumo"): Verdict(waited="inside"),
+    def __missing__(self, key):
+        return self._empty
 
-    # C. signal
-    ("signal_straight", "green", "sumo"): Verdict(),
-    ("signal_straight", "red_then_green", "sumo"): Verdict(waited="at_line"),
-    ("signal_straight", "red_then_green", "run_red"): Verdict(violations=(RED, RIGHT_OF_WAY)),
-    ("signal_straight", "yellow_far", "sumo"): Verdict(waited="at_line"),
-    ("signal_straight", "yellow_near", "sumo"): Verdict(),      # enters on yellow, but could not have stopped
-    ("signal_left", "oncoming_then_gap", "sumo"): Verdict(waited="inside"),
 
-    # D. roundabout
-    ("roundabout", "empty", "sumo"): Verdict(),
-    ("roundabout", "yield_to_circulating", "sumo"): Verdict(waited="at_line"),
-    ("roundabout", "yield_to_circulating", "cut_in"): Verdict(
-        completed=False, violations=(RIGHT_OF_WAY, COLLISION)),
-    ("roundabout", "circulating_exits", "sumo"): Verdict(violations=(RIGHT_OF_WAY,)),   # same reason as other_turns_off
-    ("roundabout", "circulating_exits", "wait_until_it_exits"): Verdict(waited="at_line"),
-    ("roundabout", "entering_car_yields", "sumo"): Verdict(),
-}
+EXPECTED: Dict[Key, Expectation] = _Table(Expectation())
+EXPECTED_VERDICT: Dict[Key, Verdict] = _Table(Verdict())
+
+
+def check(data: dict) -> None:
+    """Raise ValueError unless `data` has the shape of expectations.json."""
+    from semalpha.predicates import PROPOSITIONS
+    from semalpha.rules import RULES, where_it_waited
+
+    rules = {r.name for r in RULES}
+
+    def literals(text, where):
+        if not isinstance(text, str):
+            raise ValueError(f"{where}: labels must be text")
+        for literal in text.split():
+            if literal.lstrip("!") not in PROPOSITIONS:
+                raise ValueError(f"{where}: unknown label '{literal.lstrip('!')}'")
+
+    if not isinstance(data, dict):
+        raise ValueError("expectations must be an object keyed by scenario/variant/driver")
+    for key, entry in data.items():
+        if len(key.split("/")) != 3:
+            raise ValueError(f"'{key}': key must be scenario/variant/driver")
+        for i, phase in enumerate(entry.get("phases", [])):
+            if not isinstance(phase.get("name"), str) or not isinstance(phase.get("optional", False), bool):
+                raise ValueError(f"{key}, phase {i + 1}: needs a name and an optional flag")
+            at = phase.get("at")
+            if at is not None and (isinstance(at, bool) or not isinstance(at, (int, float)) or at < 0):
+                raise ValueError(f"{key}, phase {i + 1}: the expected time must be a number of seconds")
+            literals(phase.get("labels"), f"{key}, phase {i + 1}")
+        for i, combo in enumerate(entry.get("never", [])):
+            literals(combo, f"{key}, never {i + 1}")
+        verdict = entry.get("verdict", {})
+        if not isinstance(verdict.get("completed", True), bool):
+            raise ValueError(f"{key}: verdict.completed must be true or false")
+        for rule in verdict.get("violations", []):
+            if rule not in rules:
+                raise ValueError(f"{key}: unknown rule '{rule}'")
+        if verdict.get("waited", "nowhere") not in where_it_waited.states:
+            raise ValueError(f"{key}: unknown halting place '{verdict.get('waited')}'")
+
+
+def read(path: Path = FILE) -> dict:
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+def stamp(data: dict | None = None) -> str:
+    """A short fingerprint of the saved expectations: it changes whenever they do."""
+    text = json.dumps(read() if data is None else data, sort_keys=True)
+    return hashlib.sha1(text.encode()).hexdigest()[:12]
+
+
+def write(data: dict, path: Path = FILE) -> None:
+    check(data)
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    reload(path)
+
+
+def reload(path: Path = FILE) -> None:
+    """(Re)fill EXPECTED and EXPECTED_VERDICT from the file."""
+    EXPECTED.clear()
+    EXPECTED_VERDICT.clear()
+    for key, entry in read(path).items():
+        k = tuple(key.split("/"))
+        EXPECTED[k] = Expectation(
+            tuple(Phase(p["name"], p["labels"], bool(p.get("optional")), p.get("at"))
+                  for p in entry.get("phases", [])),
+            tuple(entry.get("never", [])),
+        )
+        v = entry.get("verdict", {})
+        EXPECTED_VERDICT[k] = Verdict(v.get("completed", True), tuple(v.get("violations", [])),
+                                      v.get("waited", "nowhere"))
+
+
+reload()

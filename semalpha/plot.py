@@ -221,7 +221,7 @@ def trace_figure(runs=REPRESENTATIVE, out=ROOT / "docs" / "figures" / "traces.pn
         ax.set_title(f"{key[0]} / {key[1]} / {key[2]}", fontsize=9.5, color=INK, loc="left", pad=16)
         ax.text(1.0, 1.045, verdict, transform=ax.transAxes, fontsize=7.5, color=INK_SOFT, ha="right")
         phases = "   ".join(
-            f"{i + 1} {'(' + p[0] + ')' if len(p) > 2 else p[0]}"
+            f"{i + 1} {'(' + p.name + ')' if p.optional else p.name}"
             for i, (p, t) in enumerate(zip(expectation.phases, match.reached)) if t is not None)
         ax.text(0, -0.085, "\n".join(textwrap.wrap("Expected phases:  " + phases, 112)), transform=ax.transAxes,
                 fontsize=6.8, color=INK_SOFT, va="top")
